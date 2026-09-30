@@ -11,6 +11,10 @@
 Select a component, describe a change, and explore three designs side by side. Refine one,
 remix two, then take your chosen result back to your project.
 
+<img width="1352" height="878" alt="res" src="https://github.com/user-attachments/assets/17cf3666-048d-4cfb-9c05-393d8dd0e3da" />
+<img width="539" height="202" alt="snippet" src="https://github.com/user-attachments/assets/1d98944a-cd3c-4ff1-b1b7-f28ad400e38e" />
+
+
 ## Get started
 
 ```sh
