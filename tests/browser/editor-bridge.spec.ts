@@ -126,3 +126,133 @@ test('opaque preview messages cannot unlock trust; a real host update can', asyn
   )
   await expect(capture).toBeEnabled()
 })
+
+test('detected Cursor login enables generation for the captured component without another setup step', async ({
+  page,
+}) => {
+  const { frame, state } = await openEditorFrame(page, true)
+  const captured: EditorState = {
+    ...state,
+    source: {
+      id: 'captured-button',
+      relativePath: 'src/Button.tsx',
+      language: 'typescriptreact',
+      code: '<button>Save</button>',
+      startLine: 1,
+      endLine: 1,
+      selection: true,
+    },
+    intent: 'Make the action easier to find.',
+  }
+  await page.evaluate((next) => {
+    const child = document.querySelector('#spectra-frame')
+    if (!(child instanceof HTMLIFrameElement)) throw new Error('Editor frame is missing')
+    child.contentWindow?.postMessage({ type: 'state', state: next }, window.origin)
+  }, captured)
+  const generate = frame.getByRole('button', { name: 'Generate 3 directions', exact: true })
+  await expect(generate).toBeDisabled()
+  await expect(frame.locator('#engine-help')).toContainText('Connect Cursor CLI')
+  await page.evaluate(
+    (providers) => {
+      const child = document.querySelector('#spectra-frame')
+      if (!(child instanceof HTMLIFrameElement)) throw new Error('Editor frame is missing')
+      child.contentWindow?.postMessage(
+        {
+          type: 'status',
+          status: { providers, trusted: true, busy: false, activity: null },
+        },
+        window.origin,
+      )
+    },
+    state.providers.map((provider) => ({ ...provider, configured: provider.id === 'cursor' })),
+  )
+  await expect(generate).toBeEnabled()
+  await expect(frame.locator('#intent')).toHaveValue(captured.intent)
+  await expect(frame.locator('#engine')).toHaveValue('cursor')
+  await generate.click()
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (window as TestHost).editorRequests.filter((request) => request.command === 'generate'),
+      ),
+    )
+    .toMatchObject([{ command: 'generate', provider: 'cursor', prompt: captured.intent }])
+})
+
+const sendState = async (page: Page, state: EditorState) =>
+  page.evaluate((next) => {
+    const child = document.querySelector('#spectra-frame')
+    if (!(child instanceof HTMLIFrameElement)) throw new Error('Editor frame is missing')
+    child.contentWindow?.postMessage({ type: 'state', state: next }, window.origin)
+  }, state)
+
+const capturedState = (state: EditorState): EditorState => ({
+  ...state,
+  source: {
+    id: 'recovery-button',
+    relativePath: 'src/Button.tsx',
+    language: 'typescriptreact',
+    code: '<button>Save</button>',
+    startLine: 1,
+    endLine: 1,
+    selection: true,
+  },
+  intent: 'Keep this careful instruction',
+})
+
+test('Cursor check failures explain the disabled button and direct recovery preserves the instruction', async ({
+  page,
+}) => {
+  const { frame, state } = await openEditorFrame(page, true)
+  const captured = capturedState(state)
+  captured.providers[0] = {
+    ...captured.providers[0],
+    connection: 'error',
+    detail: 'Cursor CLI was not found. Check spectra.cursorCliPath.',
+  }
+  await sendState(page, captured)
+  await expect(frame.locator('#engine-help')).toContainText('was not found')
+  await expect(
+    frame.getByRole('button', { name: 'Generate 3 directions', exact: true }),
+  ).toBeDisabled()
+  await frame.getByRole('button', { name: 'Check Cursor', exact: true }).click()
+  await expect
+    .poll(() => page.evaluate(() => (window as TestHost).editorRequests.at(-1)))
+    .toMatchObject({ command: 'configureProvider', provider: 'cursor', action: 'check' })
+  await frame.locator('#intent').fill('Retain my new draft')
+  await sendState(page, {
+    ...captured,
+    providers: captured.providers.map((provider) =>
+      provider.id === 'cursor'
+        ? { ...provider, configured: true, connection: 'ready', detail: 'CLI login detected' }
+        : provider,
+    ),
+  })
+  await expect(
+    frame.getByRole('button', { name: 'Generate 3 directions', exact: true }),
+  ).toBeEnabled()
+  await expect(frame.locator('#intent')).toHaveValue('Retain my new draft')
+})
+
+test('configuring an available API provider selects it instead of leaving Generate blocked by Cursor', async ({
+  page,
+}) => {
+  const { frame, state } = await openEditorFrame(page, true)
+  const captured = capturedState(state)
+  captured.providers = captured.providers.map((provider) => ({
+    ...provider,
+    configured: provider.id === 'openai',
+  }))
+  await sendState(page, captured)
+  await frame.locator('#engine').selectOption('cursor')
+  await expect(
+    frame.getByRole('button', { name: 'Generate 3 directions', exact: true }),
+  ).toBeDisabled()
+  await frame.getByRole('button', { name: 'AI providers', exact: true }).first().click()
+  await frame.getByRole('button', { name: 'Manage key', exact: true }).click()
+  await frame.getByRole('button', { name: 'Close AI providers' }).click()
+  await expect(frame.locator('#engine')).toHaveValue('openai')
+  await expect(
+    frame.getByRole('button', { name: 'Generate 3 directions', exact: true }),
+  ).toBeEnabled()
+})

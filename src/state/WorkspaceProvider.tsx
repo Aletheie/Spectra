@@ -98,9 +98,10 @@ const useWorkspaceController = () => {
           : !editor.trusted
             ? 'Trust this workspace in Cursor to enable live generation.'
             : !provider?.configured
-              ? engine === 'cursor'
-                ? 'Connect Cursor CLI or check its login in AI providers.'
-                : 'Add a key for this provider in AI providers.'
+              ? provider?.detail ||
+                (engine === 'cursor'
+                  ? 'Connect Cursor CLI or check its login in AI providers.'
+                  : 'Add a key for this provider in AI providers.')
               : ''
   const canGenerate = !loading && !generationBlock
   const setError = useCallback(
@@ -225,6 +226,15 @@ const useWorkspaceController = () => {
       setError('', scope)
       try {
         const message = await sendToEditor(command)
+        if (
+          command.command === 'configureProvider' &&
+          (command.action === 'login' ||
+            editorRef.current.providers.some(
+              (item) => item.id === command.provider && item.configured,
+            ))
+        ) {
+          setEngine(command.provider)
+        }
         if (message) notify(message)
         return true
       } catch (error) {

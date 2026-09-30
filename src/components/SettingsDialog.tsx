@@ -46,13 +46,14 @@ export const SettingsDialog = () => {
                 </h3>
                 <p>{provider?.model ?? 'Configure in Cursor'}</p>
                 <span className="provider-status">
-                  {id === 'cursor'
-                    ? provider?.configured
-                      ? 'CLI login detected · Model access not checked'
-                      : 'Check CLI login or sign in'
-                    : provider?.configured
-                      ? 'Key saved · Not a connectivity check'
-                      : 'No API key saved'}
+                  {provider?.detail ||
+                    (id === 'cursor'
+                      ? provider?.configured
+                        ? 'CLI login detected · Model access not checked'
+                        : 'Check CLI login or sign in'
+                      : provider?.configured
+                        ? 'Key saved · Not a connectivity check'
+                        : 'No API key saved')}
                 </span>
               </div>
               <button

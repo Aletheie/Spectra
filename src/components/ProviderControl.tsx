@@ -13,6 +13,7 @@ export const ProviderControl = ({ id = 'engine' }: { id?: string }) => {
     isEditor,
     trusted,
     provider,
+    perform,
   } = useWorkspace()
   return (
     <div className="provider-options">
@@ -49,6 +50,26 @@ export const ProviderControl = ({ id = 'engine' }: { id?: string }) => {
           </button>
         )}
       </p>
+      {engine === 'cursor' && isEditor && trusted && !provider?.configured && (
+        <div className="provider-control">
+          <button
+            disabled={loading || provider?.connection === 'checking'}
+            onClick={() =>
+              void perform({ command: 'configureProvider', provider: 'cursor', action: 'check' })
+            }
+          >
+            {provider?.connection === 'checking' ? 'Checking Cursor…' : 'Check Cursor'}
+          </button>
+          <button
+            disabled={loading}
+            onClick={() =>
+              void perform({ command: 'configureProvider', provider: 'cursor', action: 'login' })
+            }
+          >
+            Sign in to Cursor CLI
+          </button>
+        </div>
+      )}
     </div>
   )
 }
