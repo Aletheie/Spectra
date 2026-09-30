@@ -18,6 +18,9 @@ import {
   type ProviderInfo,
 } from '../src/domain/protocol'
 import { suggestedComponentPrompt } from '../src/domain/component'
+import { reactLanguageFor } from '../src/domain/react'
+import { replacementSnapshot } from './replacement'
+import { createEditorReplacement, type ReplacementTarget } from './editor-replacement'
 import { CURSOR_GENERATION_TIMEOUT_MS } from '../src/domain/timeouts'
 import { parseGeneratedVariants, validEditorRequest } from '../src/domain/validation'
 import { original as sampleOriginal } from '../src/variants'
@@ -85,6 +88,7 @@ const createPanel = (
   }
   let state: EditorState = { ...initialEditorState, trusted: vscode.workspace.isTrusted }
   let sourceUri: vscode.Uri | undefined
+  let replacementTarget: ReplacementTarget | undefined
   let disposed = false
   let controller: AbortController | undefined
   let cursorReady = false
@@ -106,6 +110,7 @@ const createPanel = (
   const ensureOpen = () => {
     if (disposed) throw new Error('Spectra was closed. Reopen the comparison canvas.')
   }
+  const editorReplacement = createEditorReplacement(ensureOpen, trust)
   const post = (message: HostMessage) => {
     if (!disposed) void panel.webview.postMessage(message)
   }
@@ -266,6 +271,13 @@ const createPanel = (
     const code = document.getText(range)
     const relativePath = vscode.workspace.asRelativePath(document.uri, true)
     validateSource(relativePath, document.languageId, code)
+    const snapshot = reactLanguageFor({ relativePath, language: document.languageId })
+      ? replacementSnapshot(
+          document.getText(),
+          document.offsetAt(range.start),
+          document.offsetAt(range.end),
+        )
+      : undefined
     let rootPath: string
     let filePath: string
     try {
@@ -284,6 +296,9 @@ const createPanel = (
     ensureOpen()
     trust()
     sourceUri = document.uri
+    replacementTarget = snapshot
+      ? { uri: document.uri, canonicalPath: filePath, snapshot }
+      : undefined
     state = {
       ...state,
       source: {
@@ -679,6 +694,7 @@ const createPanel = (
     const confirming =
       command.command === 'exportHtml' ||
       command.command === 'configureProvider' ||
+      command.command === 'replaceComponent' ||
       (['generate', 'refine', 'remix'].includes(command.command) &&
         'provider' in command &&
         command.provider !== 'demo')
@@ -697,6 +713,7 @@ const createPanel = (
         case 'loadSample':
           await confirmReset()
           sourceUri = undefined
+          replacementTarget = undefined
           state = {
             ...state,
             source: null,
@@ -725,6 +742,8 @@ const createPanel = (
         case 'remix':
           return await generate(command)
         case 'copyHandoff':
+        case 'copyReact':
+        case 'replaceComponent':
         case 'exportHtml': {
           trust()
           const variant = state.variants.find((item) => item.id === command.variantId)
@@ -732,6 +751,19 @@ const createPanel = (
             throw new Error(
               'That direction is no longer available. Choose a direction on this canvas.',
             )
+          if (command.command === 'replaceComponent') {
+            if (!state.source || !replacementTarget)
+              throw new Error('Capture a TSX or JSX component before replacing source.')
+            return await editorReplacement.replace(state.source, replacementTarget, variant)
+          }
+          if (command.command === 'copyReact') {
+            if (!variant.react)
+              throw new Error(
+                'This direction has no React code. Generate from a TSX or JSX component.',
+              )
+            await vscode.env.clipboard.writeText(variant.react.code)
+            return 'React + Tailwind code copied. It matches this exact revision.'
+          }
           if (command.command === 'copyHandoff') {
             await vscode.env.clipboard.writeText(createHandoff(state.source, state.intent, variant))
             return 'Implementation brief copied. Paste it manually into Cursor; no project files were changed.'
@@ -841,6 +873,7 @@ const createPanel = (
   )
   panel.onDidDispose(() => {
     disposed = true
+    editorReplacement.dispose()
     controller?.abort()
     cursorStatusController?.abort()
     clearInterval(loginPoll)
