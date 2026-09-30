@@ -50,9 +50,9 @@ export const PreviewControls = () => {
             if (surface !== undefined) setPreviewSettings((current) => ({ ...current, surface }))
           }}
         >
-          <option value="checkerboard">Transparency grid</option>
           <option value="light">Light</option>
           <option value="dark">Dark</option>
+          <option value="checkerboard">Transparency grid</option>
         </select>
       </div>
       <span className="preview-settings-note">All previews · Canvas is not exported</span>

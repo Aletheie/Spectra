@@ -11,5 +11,5 @@ export type PreviewSettings = {
 export const defaultPreviewSettings: PreviewSettings = {
   width: 'fit',
   height: 560,
-  surface: 'checkerboard',
+  surface: 'light',
 }
