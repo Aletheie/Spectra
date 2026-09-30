@@ -4,6 +4,7 @@ import { validEditorState } from '../src/domain/validation'
 import { withLineage } from '../src/domain/lineage'
 import type { GenerationResult } from './providers'
 import { emptyConstraints, hasConstraints } from '../src/domain/constraints'
+import { reactLanguageFor } from '../src/domain/react'
 
 export type GenerationCommand = Extract<EditorCommand, { command: GenerationAction }>
 
@@ -39,6 +40,10 @@ export const applyGeneration = (
   result: GenerationResult,
 ): EditorState => {
   if (
+    (reactLanguageFor(state.source) !== null &&
+      result.variants.some(
+        (variant) => variant.react?.language !== reactLanguageFor(state.source),
+      )) ||
     result.variants.length !== (command.command === 'generate' ? 3 : 1) ||
     (state.original && result.original) ||
     (!state.original && (!state.source || command.command !== 'generate' || !result.original))

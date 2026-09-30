@@ -2,9 +2,17 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createHandoff } from '../src/domain/handoff'
 import { initialEditorState, type EditorState, type SourceContext } from '../src/domain/protocol'
-import { original, demoVariants } from '../src/variants'
+import { original, demoVariants as previewVariants } from '../src/variants'
 import { applyGeneration, resolveSources, type GenerationCommand } from './session'
 import { isWithin, validateSource } from './source'
+
+const demoVariants = previewVariants.map((variant) => ({
+  ...variant,
+  react: {
+    language: 'tsx' as const,
+    code: 'export const Card = () => <article className="rounded-xl p-4">Card</article>',
+  },
+}))
 
 const source: SourceContext = {
   id: 'snapshot',
@@ -92,7 +100,7 @@ test('handoff contains exact snapshot and selected implementation with safe mark
   assert.ok(handoff.includes(demoVariants[1].css))
   assert.match(handoff, /lines 3–7/)
   assert.match(handoff, /````typescriptreact/)
-  assert.match(handoff, /not drop-in React/)
+  assert.match(handoff, /React \+ Tailwind/)
   assert.match(handoff, /does not apply any edits/)
   assert.match(handoff, /omits the preview CSP/)
   assert.match(createHandoff(null, 'Sample', demoVariants[0]), /curated Orbit sample/)
