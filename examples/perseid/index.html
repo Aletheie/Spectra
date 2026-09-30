@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="cs">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Perseid · Zkušební hřiště pro Spectru</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+        color: oklch(0.27 0.035 247);
+        background: oklch(0.96 0.009 247);
+        --muted: oklch(0.46 0.025 247);
+        --line: oklch(0.83 0.015 247);
+        --accent: oklch(0.43 0.085 247);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 32px;
+      }
+      main {
+        max-width: 1080px;
+        margin-inline: auto;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 20px;
+        padding-bottom: 24px;
+        border-bottom: 1px solid var(--line);
+      }
+      .wordmark {
+        font-size: 1.3rem;
+        font-weight: 750;
+        letter-spacing: -0.035em;
+      }
+      .wordmark span {
+        color: var(--accent);
+        margin-right: 8px;
+      }
+      header p {
+        font-size: 0.83rem;
+        color: var(--muted);
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1,
+      h2,
+      h3 {
+        line-height: 1.15;
+        text-wrap: balance;
+      }
+      h1 {
+        font-size: 3.1rem;
+        letter-spacing: -0.035em;
+        max-width: 14ch;
+      }
+      h2 {
+        font-size: 1.4rem;
+        letter-spacing: -0.025em;
+      }
+      h3 {
+        font-size: 1rem;
+      }
+      .welcome {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 70px;
+        padding: 54px 0;
+        align-items: end;
+      }
+      .welcome p {
+        color: var(--muted);
+        max-width: 47ch;
+      }
+      .welcome a {
+        margin-top: 20px;
+      }
+      a {
+        color: var(--accent);
+        text-underline-offset: 4px;
+      }
+      button,
+      .button {
+        font: inherit;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        min-height: 44px;
+        padding: 10px 16px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        color: var(--accent);
+        background: white;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        text-decoration: none;
+        transition: background 160ms ease-out;
+      }
+      button:hover,
+      .button:hover {
+        background: oklch(0.92 0.025 247);
+      }
+      .primary {
+        background: var(--accent);
+        color: white;
+        border-color: transparent;
+      }
+      .primary:hover {
+        background: oklch(0.27 0.035 247);
+      }
+      :focus-visible {
+        outline: 3px solid oklch(0.6 0.14 247);
+        outline-offset: 4px;
+      }
+      .lab {
+        border-block: 1px solid var(--line);
+        background: white;
+      }
+      article {
+        display: grid;
+        grid-template-columns: 0.9fr 1.3fr;
+        gap: 40px;
+        padding: 30px;
+      }
+      article + article {
+        border-top: 1px solid var(--line);
+      }
+      .kind {
+        color: var(--muted);
+        font-size: 0.8rem;
+        margin-bottom: 10px;
+      }
+      article p {
+        color: var(--muted);
+        margin-top: 12px;
+        font-size: 0.9rem;
+        max-width: 45ch;
+      }
+      code {
+        font:
+          0.8rem/1.5 ui-monospace,
+          SFMono-Regular,
+          Consolas,
+          monospace;
+        overflow-wrap: anywhere;
+      }
+      .filename {
+        display: block;
+        margin: 14px 0 18px;
+      }
+      .prompt label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      textarea {
+        font-size: 0.88rem;
+        font-family: inherit;
+        line-height: 1.6;
+        color: inherit;
+        width: 100%;
+        min-height: 140px;
+        resize: vertical;
+        background: oklch(0.97 0.008 247);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 14px;
+      }
+      .copy-row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-top: 10px;
+      }
+      .copy-row span {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .how {
+        padding: 38px 0;
+        display: grid;
+        grid-template-columns: 0.9fr 1.3fr;
+        gap: 40px;
+      }
+      .how ol {
+        margin: 0;
+        padding-left: 22px;
+      }
+      .how li {
+        padding: 0 0 12px 6px;
+        font-size: 0.92rem;
+      }
+      .how p {
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin-top: 14px;
+        max-width: 35ch;
+      }
+      footer {
+        border-top: 1px solid var(--line);
+        padding-top: 22px;
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+      footer p {
+        max-width: 85ch;
+      }
+      @media (max-width: 740px) {
+        body {
+          padding: 22px 16px;
+        }
+        .welcome,
+        article,
+        .how {
+          grid-template-columns: 1fr;
+          gap: 24px;
+        }
+        .welcome {
+          padding: 34px 0;
+        }
+        h1 {
+          font-size: 2.4rem;
+        }
+        article {
+          padding: 24px 20px;
+        }
+        header {
+          align-items: start;
+        }
+        header p {
+          max-width: 20ch;
+          text-align: right;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="wordmark"><span aria-hidden="true">✳</span>perseid</div>
+        <p>Zkušební hřiště pro Spectru</p>
+      </header>
+      <section class="welcome" aria-labelledby="title">
+        <h1 id="title">Jedna komponenta.<br />Tři jiné směry.</h1>
+        <div>
+          <p>
+            Vyzkoušejte Spectru na malém projektu o večerech pod hvězdami. Tři hotové komponenty,
+            skutečné místní interakce a zadání připravená ke zkopírování.
+          </p>
+          <a class="button primary" href="booking.html"
+            >Prohlédnout první demo <span aria-hidden="true">↗</span></a
+          >
+        </div>
+      </section>
+      <section class="lab" aria-label="Komponenty k vyzkoušení">
+        <article>
+          <div>
+            <div class="kind">Začněte tady · formulář a souhrn ceny</div>
+            <h2>Večer u dalekohledu</h2>
+            <p>
+              Výběr termínu, počty návštěvníků, volitelný čaj a potvrzení. Ideální pro porovnání
+              rozložení a počtu kroků.
+            </p>
+            <code class="filename">examples/perseid/booking.html</code>
+            <a class="button" href="booking.html">Otevřít rezervační formulář ↗</a>
+          </div>
+          <div class="prompt">
+            <label for="booking-prompt">Zadání do Spectry</label>
+            <textarea id="booking-prompt" readonly spellcheck="false">
+Zjednoduš rezervaci večera u dalekohledu. Navrhni tři různé přístupy k rozložení, hierarchii a průchodu formulářem. Uživatel má rychle pochopit termín, počet míst a konečnou cenu. Zachovej češtinu, všechny ceny, limit 6 osob, dostupné termíny a viditelné označení dema. Rozdíly nesmějí být jen v barvách.</textarea>
+            <div class="copy-row">
+              <button type="button" data-copy="booking-prompt">Kopírovat zadání</button
+              ><span role="status"></span>
+            </div>
+          </div>
+        </article>
+        <article>
+          <div>
+            <div class="kind">Seznam · filtrování · tmavé prostředí</div>
+            <h2>Pět zastávek na obloze</h2>
+            <p>
+              Pozorovací seznam s hledáním, filtry a průběhem. Zkuste, jak se může změnit hustota
+              informací a práce na mobilu.
+            </p>
+            <code class="filename">examples/perseid/observation-list.html</code>
+            <a class="button" href="observation-list.html">Otevřít pozorovací seznam ↗</a>
+          </div>
+          <div class="prompt">
+            <label for="list-prompt">Zadání do Spectry</label>
+            <textarea id="list-prompt" readonly spellcheck="false">
+Zpřehledni pozorovací seznam pro telefon používaný venku večer. Navrhni tři rozdílné způsoby uspořádání objektů, filtrů a postupu. Zachovej tmavé pozadí, všech pět objektů, hledání, označení pozorovaných objektů, nulování a české texty. Časy i viditelnost dál označuj jako ilustrativní.</textarea>
+            <div class="copy-row">
+              <button type="button" data-copy="list-prompt">Kopírovat zadání</button
+              ><span role="status"></span>
+            </div>
+          </div>
+        </article>
+        <article>
+          <div>
+            <div class="kind">Malá komponenta · rozhodování · rozbalení</div>
+            <h2>Plány mění počasí</h2>
+            <p>
+              Klidné vysvětlení zrušeného termínu. Náhradní datum, vrácení částky a lokální
+              potvrzení výběru.
+            </p>
+            <code class="filename">examples/perseid/weather-alert.html</code>
+            <a class="button" href="weather-alert.html">Otevřít upozornění ↗</a>
+          </div>
+          <div class="prompt">
+            <label for="weather-prompt">Zadání do Spectry</label>
+            <textarea id="weather-prompt" readonly spellcheck="false">
+Navrhni tři různá řešení upozornění na zrušené pozorování. Uživatel má hned pochopit, co se stalo a že může zvolit náhradní termín nebo vrácení celé částky. Zachovej 2 dospělé, cenu 780 Kč, oba náhradní termíny, český jazyk a označení simulace. Zůstaň u kompaktní komponenty bez další stránky či navigace.</textarea>
+            <div class="copy-row">
+              <button type="button" data-copy="weather-prompt">Kopírovat zadání</button
+              ><span role="status"></span>
+            </div>
+          </div>
+        </article>
+      </section>
+      <section class="how" aria-labelledby="how-title">
+        <div>
+          <h2 id="how-title">Z prohlížeče do Spectry</h2>
+          <p>
+            Tyto stránky slouží k prohlédnutí originálu. Spectra pracuje se souborem otevřeným v
+            Cursoru.
+          </p>
+          <p>
+            Podrobný postup a další zadání najdete v <a href="README.md">README.md</a> v této
+            složce.
+          </p>
+        </div>
+        <ol>
+          <li>
+            V Cursoru otevřete <code>booking.html</code>. Zrušte textový výběr, aby se zachytil celý
+            soubor se styly i skriptem.
+          </li>
+          <li>
+            V paletě příkazů spusťte <strong>Spectra: Explore Component</strong> a zkontrolujte
+            zachycený zdroj.
+          </li>
+          <li>
+            V <strong>AI providers</strong> připojte Cursor CLI, nebo vlastní API klíč. Pro tyto
+            soubory je potřeba živý poskytovatel.
+          </li>
+          <li>
+            Vložte zadání, spusťte <strong>Generate 3 directions</strong> a potvrďte odeslání zdroje
+            v editoru.
+          </li>
+          <li>
+            Porovnejte návrhy, použijte <strong>Refine</strong> nebo <strong>Remix</strong> a
+            vyberte <strong>Choose</strong>.
+          </li>
+          <li>
+            <strong>Copy for Cursor</strong> zkopíruje zadání k ručnímu vložení do Cursoru.
+            <strong>Save HTML</strong> uloží vybraný návrh.
+          </li>
+        </ol>
+      </section>
+      <footer>
+        <p>
+          Všechny tři komponenty jsou samostatné HTML soubory bez knihoven a síťových požadavků.
+          Perseid je smyšlené demo. Náhled Original ve Spectře je i u HTML rekonstrukce vytvořená
+          AI; skutečný originál vidíte v těchto souborech v prohlížeči.
+        </p>
+      </footer>
+    </main>
+    <script>
+      for (const button of document.querySelectorAll('[data-copy]')) {
+        button.addEventListener('click', async () => {
+          const field = document.getElementById(button.dataset.copy)
+          const status = button.nextElementSibling
+          try {
+            await navigator.clipboard.writeText(field.value)
+            status.textContent = 'Zkopírováno.'
+          } catch {
+            field.focus()
+            field.select()
+            status.textContent = 'Text je označený. Stiskněte ⌘C nebo Ctrl+C.'
+          }
+        })
+      }
+    </script>
+  </body>
+</html>
