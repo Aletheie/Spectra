@@ -1,30 +1,52 @@
 # Perseid — demo pro Spectru
 
-Malá smyšlená služba pro rezervaci pozorování oblohy. Tři samostatné komponenty mají
-vlastní HTML, CSS i JavaScript, takže Spectra získá celý kontext jedním zachycením souboru.
-Nejsou potřeba závislosti, server ani další instalace. Nic se neposílá do sítě a stav
-se po obnovení stránky vrátí na začátek. Živé generování ve Spectře je samostatná akce.
+Malá smyšlená služba pro rezervaci pozorování oblohy, postavená na **Reactu 19,
+TypeScriptu a Tailwind CSS 4**. Vite spouští aplikaci a sestavuje produkční soubory.
+Rezervace, seznam a upozornění mají vlastní React komponenty; společné ovládání
+je v `src/ui.tsx` a barevné tokeny v `src/styles.css`.
 
-## Prohlédnutí dema
+Interakce jsou pouze místní: bez backendu, skutečných rezervací a plateb. Stav se
+po obnovení stránky vrátí na začátek. Živé generování ve Spectře je samostatná akce.
 
-Otevřete [index.html](index.html) v prohlížeči, například na macOS z kořene repozitáře:
+## Spuštění
+
+Z kořene repozitáře:
 
 ```sh
-open examples/perseid/index.html
+npm install
+npm run dev:perseid
 ```
 
-Rozcestník obsahuje náhledové odkazy a hotová zadání s tlačítkem pro kopírování.
-Soubory otevřené v prohlížeči ukazují skutečné demo; pro práci ve Spectře otevřete
-jejich zdroj v **Cursoru**. Do Spectry zachycujte jednu z těchto komponent, ne rozcestník:
+Otevřete **http://127.0.0.1:5174**. Odkazy `booking.html`, `observation-list.html`
+a `weather-alert.html` zůstávají stejné. HTML soubory jsou nyní vstupní body Vite;
+neotevírají se přímo přes `file://`. Editace TSX a Tailwind tříd se projeví přes HMR.
+Pokud port 5174 používá jiný server, Vite vybere další volný port; použijte adresu
+vypsanou v terminálu. Konkrétní port lze zadat: `npm run dev:perseid -- --port 5175`.
 
-| Soubor                                         | Co funguje                                                                 | Co porovnávat                                        |
-| ---------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------- |
-| [booking.html](booking.html)                   | Termín, počet návštěvníků, čaj, přepočet ceny, validace a místní potvrzení | Hierarchie ceny, rozložení formuláře, počet kroků    |
-| [observation-list.html](observation-list.html) | Hledání i bez diakritiky, filtry, zaškrtávání, postup a nulování           | Hustota seznamu, práce na mobilu, čitelnost ve tmě   |
-| [weather-alert.html](weather-alert.html)       | Rozbalení vysvětlení, volba termínu nebo refundace, potvrzení a návrat     | Klidné vysvětlení problému a srozumitelný další krok |
+```sh
+npm run build:perseid    # TypeScript + produkční sestavení do dist/perseid
+npm run preview:perseid  # Náhled sestavení na http://127.0.0.1:4174
+npm run lint:perseid     # Kontrola React/TypeScript a přístupnosti
+npm run test:perseid     # Sestaví aplikaci a spustí browser regrese
+```
 
-Každý soubor se vejde do limitu 60 000 znaků. Obsah je záměrně přímo v souboru;
-v běžném projektu by šlo společné styly sdílet, ale Spectra importy sama nesbírá.
+Browser testy potřebují Playwright Chromium (`npx playwright install chromium`).
+Všechny závislosti sdílí kořenový `package.json` a npm lockfile; ve složce dema není
+potřeba samostatný `npm install`. Tailwind se sestavuje lokálně, bez CDN.
+
+Rozcestník obsahuje náhledové odkazy a zadání s kopírováním. Pro práci ve Spectře
+otevřete v **Cursoru** přímo jednu z těchto komponent:
+
+| Zdroj                                              | Co funguje                                                        | Co porovnávat                                      |
+| -------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------- |
+| [src/Booking.tsx](src/Booking.tsx)                 | Termín, počet návštěvníků, čaj, cena, validace a místní potvrzení | Hierarchie ceny, rozložení formuláře, počet kroků  |
+| [src/ObservationList.tsx](src/ObservationList.tsx) | Hledání bez diakritiky, filtry, zaškrtávání, postup a nulování    | Hustota seznamu, práce na mobilu, čitelnost ve tmě |
+| [src/WeatherAlert.tsx](src/WeatherAlert.tsx)       | Vysvětlení, náhradní termín nebo refundace, potvrzení a návrat    | Klidné vysvětlení problému a další krok            |
+
+Každá komponenta obsahuje vlastní data a chování a vejde se do limitu 60 000 znaků.
+**Spectra importy nesbírá:** nezachytí automaticky `ui.tsx`, theme tokeny ani
+vygenerované Tailwind CSS. Výsledný Original je přibližná AI rekonstrukce. Běžící
+React originál posuzujte v prohlížeči; požadované barvy či další kontext popište v zadání.
 
 ## První průchod v Cursoru
 
@@ -36,8 +58,8 @@ v běžném projektu by šlo společné styly sdílet, ale Spectra importy sama 
    Chybí-li balíček, vytvořte ho příkazem `npm run package` v kořeni.
    Alternativně spusťte F5 s konfigurací **Run Spectra extension** a v novém
    Extension Development Hostu otevřete tento repozitář.
-3. **Otevřete `examples/perseid/booking.html` jako zdroj v editoru.** Kliknutím zrušte
-   případný výběr textu. Spectra bez výběru zachytí celý soubor včetně stylů a skriptu.
+3. **Otevřete `examples/perseid/src/Booking.tsx` jako zdroj v editoru.** Kliknutím zrušte
+   případný výběr textu. Spectra bez výběru zachytí celou React komponentu včetně dat, JSX, Tailwind tříd a obsluhy událostí.
 4. Spusťte **Spectra: Explore Component** z palety příkazů nebo kontextového menu editoru.
    V panelu zkontrolujte cestu a zachycený zdroj přes **Review captured source**.
 5. V **AI providers** nastavte živého poskytovatele:
@@ -59,14 +81,16 @@ v běžném projektu by šlo společné styly sdílet, ale Spectra importy sama 
 9. Použijte **Refine** na jedné variantě nebo vyberte přesně dvě pro **Remix**.
    Tyto akce přidají další výsledek. Pak použijte **Choose** na variantě, kterou chcete dál zpracovat.
 10. **Copy for Cursor** zkopíruje kompletní předání. Ručně ho vložte do Cursor chatu a
-    doplňte například: „Uprav podle tohoto směru pouze `examples/perseid/booking.html`.
-    Zachovej funkční výpočet cen, validaci a označení dema.“ Teprve tím požádáte Cursor o úpravu.
+    doplňte například: „Uprav podle tohoto směru pouze `examples/perseid/src/Booking.tsx`.
+    Použij React a Tailwind. Zachovej funkční výpočet cen, validaci a označení dema.“ Teprve tím požádáte Cursor o úpravu.
     **Save HTML** uloží samostatný návrh přes nativní dialog. Uložte jej pod novým názvem,
     třeba `booking-experiment.html`, aby zůstal zachovaný vstup. Před otevřením exportu
     zkontrolujte generovaný kód: export už neběží v izolaci náhledu.
 
-**Original je i pro HTML rekonstrukce vytvořená AI.** Nejde o zachycený běžící soubor.
-Skutečný výchozí vzhled proto porovnejte také se souborem otevřeným v prohlížeči.
+**Original je rekonstrukce vytvořená AI.** Spectra nekompiluje React ani Tailwind.
+Skutečný výchozí vzhled proto porovnejte také s aplikací spuštěnou přes `npm run dev:perseid`.
+Save HTML je samostatný HTML/CSS/JS návrh; převedení návrhu zpět do Reactu a Tailwindu
+probíhá ručním předáním do Cursoru.
 Demo není důkazem kvality živých návrhů; zachované chování ověřte ve výsledných variantách.
 
 ## Zadání pro první generování
@@ -140,8 +164,9 @@ a označení simulace. Zůstaň u kompaktní komponenty bez další stránky či
 ## Když něco nejde
 
 - Nevidíte příkazy Spectry: ověřte instalaci VSIX nebo spuštění v Extension Development Hostu.
-- Capture je nedostupný: otevřete důvěryhodnou pracovní složku a přímo jeden z HTML souborů.
-- Náhled ztratil styly: zachyťte celý soubor, ne pouze část mezi `<body>` a `</body>`.
+- Capture je nedostupný: otevřete důvěryhodnou pracovní složku a přímo jeden z TSX souborů komponent.
+- Náhled se liší od aplikace: zachyťte celou TSX komponentu. Importované UI a Tailwind
+  tokeny ve snapshotu chybí; popište je v instrukci. Jde o rekonstrukci, ne spuštěný React.
 - Generování čeká: zkontrolujte nativní potvrzovací dialog editoru. Případnou chybu providera
   řešte podle zprávy; vestavěný sample není náhrada živého vygenerování těchto komponent.
 - Po změně zdroje vidíte starou verzi: explicitně proveďte nové zachycení. Snapshot se sám neobnovuje.
@@ -149,9 +174,24 @@ a označení simulace. Zůstaň u kompaktní komponenty bez další stránky či
   zkopírujte nebo uložte přes Save HTML.
 
 `npm run dev` v kořeni spouští pouze vývojový browser harness Spectry s vestavěným samplem.
-Pro tyto HTML soubory ho nepotřebujete; pro skutečný capture a generování používejte extension v Cursoru.
+Perseid spouštějte přes `npm run dev:perseid`; pro skutečný capture a generování používejte extension v Cursoru.
 
-## Ověření tohoto dema
+## Ověření React verze
+
+Po převodu prošly `npm run lint:perseid`, `npm run build:perseid` a všech **9 testů**
+v `npm run test:perseid`. Testy běží nad produkčním sestavením: ověřují cenu a validaci,
+filtry a postup, přesun/refundaci, návrat fokusu, kopírování i ruční fallback.
+Všechny čtyři stránky prošly šířkami 300, 375, 768 a 1280 px bez vodorovného přetékání,
+chyb JavaScriptu nebo požadavků na cizí servery. Kopírování používá testovací clipboard.
+
+Všechny tři TSX komponenty prošly `validateSource` a kontrolou umístění ve workspace;
+největší má méně než 12 000 znaků. Prošel i kořenový `npm run check` včetně buildu
+rozšíření. Nativní capture v Cursoru a živé generování tato migrace neověřovala.
+
+## Historické ověření původních HTML stránek
+
+Následující záznam se týká původní HTML verze před převodem na React, nikoli současného
+buildu. Aktuální opakovatelné kontroly jsou v `tests/perseid.spec.ts`.
 
 Při přípravě 30. září 2026 byly všechny čtyři HTML stránky vyzkoušeny v headless Chromu
 při šířkách 300, 375, 768 a 1280 px bez horizontálního přetékání. Prošly výpočty a chyby

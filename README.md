@@ -10,8 +10,9 @@ Spectra runs as a local Cursor extension. It can generate through your Cursor CL
 OpenAI, or Anthropic. There's also a prepared sample you can try without an account or API key.
 
 For a complete source-capture walkthrough, try [Perseid](examples/perseid/README.md): three
-self-contained interactive HTML components, ready-to-copy prompts, and a step-by-step guide in Czech.
-Open [the demo launcher](examples/perseid/index.html) in a browser, then capture a component in Cursor.
+interactive React + TypeScript components styled with Tailwind CSS, ready-to-copy prompts, and a
+step-by-step guide in Czech. Run `npm run dev:perseid`, open http://127.0.0.1:5174, then capture
+one of its TSX components in Cursor. `npm run build:perseid` builds the demo independently.
 
 ## Install in Cursor
 
