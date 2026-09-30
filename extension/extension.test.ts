@@ -50,6 +50,12 @@ const setup = () => {
   const cursorCalls: GenerationInput[] = []
   const consentDetails: string[] = []
   let cursorAction = 'Check connection'
+  let selectedCursorModel: string | undefined = 'model-a'
+  let cursorModelsFailure = false
+  let deferredCursorModels: Promise<{ id: string; label: string }[]> | undefined
+  const cursorModelSignals: AbortSignal[] = []
+  const settings = new Map<string, unknown>()
+  const settingsUpdates: { key: string; value: unknown; target: number }[] = []
   const terminals: {
     shellPath: string
     shellArgs: string[]
@@ -101,6 +107,7 @@ const setup = () => {
     },
     ViewColumn: { One: 1, Beside: -2 },
     ProgressLocation: { Notification: 15 },
+    ConfigurationTarget: { Global: 1 },
     window: {
       activeTextEditor: {
         document,
@@ -128,7 +135,13 @@ const setup = () => {
       },
       showWarningMessage: async (message: string) =>
         message.startsWith('Save') ? 'Choose save location' : 'Replace exploration',
-      showQuickPick: async () => cursorAction,
+      showQuickPick: async (
+        items: readonly (string | { id?: string })[],
+        options?: { title?: string },
+      ) =>
+        options?.title === 'Spectra · Choose Cursor model'
+          ? items.find((item) => typeof item !== 'string' && item.id === selectedCursorModel)
+          : cursorAction,
       createTerminal: (options: (typeof terminals)[number]) => {
         const terminal = { ...options, ...disposable(), show: () => undefined }
         terminals.push(terminal)
@@ -153,7 +166,13 @@ const setup = () => {
       isTrusted: true,
       asRelativePath: () => 'src/Card.tsx',
       getWorkspaceFolder: () => ({ uri: uri('/workspace') }),
-      getConfiguration: () => ({ get: () => undefined }),
+      getConfiguration: () => ({
+        get: (key: string) => settings.get(key),
+        update: async (key: string, value: unknown, target: number) => {
+          settingsUpdates.push({ key, value, target })
+          settings.set(key, value)
+        },
+      }),
       onDidGrantWorkspaceTrust: (listener: typeof trustListener) => {
         trustListener = listener
         return disposable()
@@ -219,6 +238,16 @@ const setup = () => {
             preparedProfiles.push(path)
           },
           cursorEnvironment: (path: string) => ({ CURSOR_CONFIG_DIR: path }),
+          listCursorModels: async (_connection: unknown, signal: AbortSignal) => {
+            cursorModelSignals.push(signal)
+            if (cursorModelsFailure) throw new Error('Could not load Cursor models.')
+            return (
+              deferredCursorModels ?? [
+                { id: 'auto', label: 'Auto' },
+                { id: 'model-a', label: 'Model A' },
+              ]
+            )
+          },
           resolveCursorExecutable: async () => {
             if (cursorResolveFailure) throw new Error('Cursor CLI was not found. Install the CLI.')
             return '/cli/agent'
@@ -312,6 +341,18 @@ const setup = () => {
     terminals,
     preparedProfiles,
     cursorStatusSignals,
+    cursorModelSignals,
+    settings,
+    settingsUpdates,
+    selectCursorModel: (id?: string) => {
+      selectedCursorModel = id
+    },
+    failCursorModels: () => {
+      cursorModelsFailure = true
+    },
+    deferCursorModels: (pending: Promise<{ id: string; label: string }[]>) => {
+      deferredCursorModels = pending
+    },
     delayFirstKeyReads: (wait: Promise<void>) => {
       delayedKeyReads = { remaining: 2, wait }
     },
@@ -437,12 +478,11 @@ test('sign-out invalidates pending automatic login results and suspends backgrou
   assert.equal(host.cursorStatusSignals.length, 1)
 })
 
-test('Cursor login and model listing use fixed native CLI commands, not webview credentials or shell strings', async () => {
+test('Cursor login and logout use fixed native CLI commands, not webview credentials or shell strings', async () => {
   const host = setup()
   await host.commands.get('spectra.open')!()
   for (const [action, cliCommand] of [
     ['Sign in to Cursor', 'login'],
-    ['List models', 'models'],
     ['Sign out of Cursor CLI', 'logout'],
   ]) {
     host.setCursorAction(action)
@@ -458,7 +498,7 @@ test('Cursor login and model listing use fixed native CLI commands, not webview 
     assert.equal(host.secrets.size, 0)
     assert.equal(host.cursorCalls.length, 0)
   }
-  assert.deepEqual(host.preparedProfiles, Array(3).fill('/extension-storage/cursor-cli'))
+  assert.deepEqual(host.preparedProfiles, Array(2).fill('/extension-storage/cursor-cli'))
 })
 
 test('Cursor host flow requires setup and consent, then preserves baseline and exact revision sources', async () => {
@@ -751,4 +791,68 @@ test('inline Cursor setup exposes failures that happen before launching the CLI'
   assert.equal(host.latestState().providers[0].connection, 'error')
   assert.match(host.latestState().providers[0].detail ?? '', /was not found/)
   assert.equal(host.latestState().busy, false)
+})
+
+test('List models opens a native model picker without a terminal and saves only the selected global model', async () => {
+  const host = setup()
+  await host.commands.get('spectra.exploreSelection')!()
+  const source = host.latestState().source
+  host.setCursorAction('List models')
+  const response = await host.request({ command: 'configureProvider', provider: 'cursor' })
+  assert.equal(response.ok, true)
+  assert.match(response.message ?? '', /model-a/)
+  assert.deepEqual(host.settingsUpdates, [{ key: 'cursorModel', value: 'model-a', target: 1 }])
+  assert.equal(
+    host.latestState().providers.find((provider) => provider.id === 'cursor')?.model,
+    'model-a',
+  )
+  assert.deepEqual(host.latestState().source, source)
+  assert.equal(host.latestState().busy, false)
+  assert.equal(host.terminals.length, 0)
+  assert.equal(host.cursorModelSignals.length, 1)
+  assert.equal(host.cursorCalls.length, 0)
+  assert.equal(host.secrets.size, 0)
+})
+
+test('Cancelling or failing model discovery preserves the current model and canvas and releases controls', async () => {
+  const host = setup()
+  await host.commands.get('spectra.loadSample')!()
+  const original = host.latestState().original
+  host.settings.set('cursorModel', 'existing-model')
+  host.setCursorAction('List models')
+  host.selectCursorModel(undefined)
+  const cancelled = await host.request({ command: 'configureProvider', provider: 'cursor' })
+  assert.equal(cancelled.cancelled, true)
+  assert.equal(host.settings.get('cursorModel'), 'existing-model')
+  assert.deepEqual(host.latestState().original, original)
+  assert.equal(host.latestState().busy, false)
+  host.failCursorModels()
+  const failed = await host.request({ command: 'configureProvider', provider: 'cursor' })
+  assert.equal(failed.ok, false)
+  assert.match(failed.error ?? '', /Could not load Cursor models/)
+  assert.equal(host.settingsUpdates.length, 0)
+  assert.equal(host.settings.get('cursorModel'), 'existing-model')
+  assert.deepEqual(host.latestState().original, original)
+  assert.equal(host.latestState().busy, false)
+  assert.equal(host.terminals.length, 0)
+})
+
+test('Closing the panel during model loading aborts discovery and cannot change settings later', async () => {
+  const host = setup()
+  await host.commands.get('spectra.open')!()
+  let finish: (models: { id: string; label: string }[]) => void = () => undefined
+  host.deferCursorModels(
+    new Promise((resolve) => {
+      finish = resolve
+    }),
+  )
+  host.setCursorAction('List models')
+  host.send({ type: 'request', id: 'models', command: 'configureProvider', provider: 'cursor' })
+  await flushHost()
+  assert.equal(host.cursorModelSignals.length, 1)
+  host.panel.dispose()
+  assert.equal(host.cursorModelSignals[0].aborted, true)
+  finish([{ id: 'model-a', label: 'Model A' }])
+  await flushHost()
+  assert.equal(host.settingsUpdates.length, 0)
 })

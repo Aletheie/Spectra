@@ -33,6 +33,7 @@ import {
   checkCursorConnection,
   cursorEnvironment,
   generateWithCursor,
+  listCursorModels,
   prepareCursorProfile,
   resolveCursorExecutable,
 } from './cursor'
@@ -369,11 +370,68 @@ const createPanel = (
       }
       const connection = await cursorConnection()
       ensureOpen()
-      if (
-        action === 'Sign in to Cursor' ||
-        action === 'List models' ||
-        action === 'Sign out of Cursor CLI'
-      ) {
+      if (action === 'List models') {
+        const abort = new AbortController()
+        controller = abort
+        running()
+        try {
+          const models = await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: 'Spectra · Loading Cursor models',
+              cancellable: true,
+            },
+            async (_progress, token) => {
+              const cancel = token.onCancellationRequested(() => abort.abort())
+              if (token.isCancellationRequested) abort.abort()
+              try {
+                return await listCursorModels(connection, abort.signal)
+              } finally {
+                cancel.dispose()
+              }
+            },
+          )
+          ensureOpen()
+          trust()
+          if (abort.signal.aborted) throw new OperationCancelled('Cursor model listing cancelled.')
+          const selected = await vscode.window.showQuickPick(
+            models.map((model) => ({
+              label: model.label,
+              description: model.id,
+              id: model.id,
+              picked: model.id === modelFor('cursor'),
+            })),
+            {
+              title: 'Spectra · Choose Cursor model',
+              placeHolder: 'Select the model for future generation, refine and remix requests.',
+              matchOnDescription: true,
+              ignoreFocusOut: true,
+            },
+          )
+          ensureOpen()
+          trust()
+          if (!selected || abort.signal.aborted)
+            throw new OperationCancelled(
+              'Model selection cancelled. Your current model is unchanged.',
+            )
+          if (!models.some((model) => model.id === selected.id))
+            throw new Error('Choose a model from the Cursor model list.')
+          await vscode.workspace
+            .getConfiguration('spectra')
+            .update('cursorModel', selected.id, vscode.ConfigurationTarget.Global)
+          await refreshProviders()
+          return `Cursor model set to ${selected.id}. It will be used for your next request.`
+        } catch (error) {
+          if (abort.signal.aborted)
+            throw new OperationCancelled(
+              'Cursor model listing cancelled. Your current model is unchanged.',
+            )
+          throw error
+        } finally {
+          controller = undefined
+        }
+      }
+      if (action === 'Sign in to Cursor' || action === 'Sign out of Cursor CLI') {
         await prepareCursorProfile(connection.configDir)
         ensureOpen()
         trust()
@@ -384,20 +442,12 @@ const createPanel = (
         const terminal = vscode.window.createTerminal({
           name: 'Spectra · Cursor account',
           shellPath: connection.executable,
-          shellArgs: [
-            action === 'List models'
-              ? 'models'
-              : action === 'Sign out of Cursor CLI'
-                ? 'logout'
-                : 'login',
-          ],
+          shellArgs: [action === 'Sign out of Cursor CLI' ? 'logout' : 'login'],
           cwd: tmpdir(),
           env,
         })
         context.subscriptions.push(terminal)
         terminal.show()
-        if (action === 'List models')
-          return 'Available Cursor models are shown in the terminal. Set a model ID in spectra.cursorModel.'
         if (action === 'Sign in to Cursor') {
           loginTerminals.add(terminal)
           const deadline = Date.now() + 180000

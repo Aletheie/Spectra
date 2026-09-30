@@ -92,7 +92,7 @@
           "type": "string",
           "default": "auto",
           "scope": "application",
-          "description": "Cursor CLI model ID, or auto. Uses your Cursor CLI account, not the editor chat model. Use AI providers → Cursor account → List models for account model IDs."
+          "description": "Cursor CLI model ID, or auto. Uses your Cursor CLI account, not the editor chat model. Use AI providers → Cursor account → Connect / check → List models to choose and save a model."
         },
         "spectra.cursorCliPath": {
           "type": "string",
