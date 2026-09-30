@@ -55,6 +55,10 @@ to load a searchable picker and select a specific model. Spectra saves the selec
 as `spectra.cursorModel`; it applies to the next generate, refine or remix request. You can also edit
 that setting manually. The model and conversation from Cursor's editor chat are separate.
 
+Cursor generation can take several minutes for larger sections. Spectra allows up to ten minutes
+per request and shows elapsed time in the native notification, where you can cancel. The panel
+keeps waiting for the result; errors and cancellation preserve your previous comparison.
+
 Spectra looks for `~/.local/bin/agent` or `~/.local/bin/cursor-agent`. For another location, set
 `spectra.cursorCliPath` to the executable's absolute path, without arguments. Remote workspaces
 need the CLI installed and signed in on the extension host. Native Windows hosts can use the

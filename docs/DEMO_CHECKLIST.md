@@ -85,6 +85,10 @@ An unchecked item means it still needs testing.
       verifying configuration do not establish real tool isolation or absence of implicit context.
 - [ ] Check cancellation, panel close, timeout, quota, unsupported model and malformed output. Confirm
       process termination, temporary workspace cleanup, unchanged canvas and recovered controls.
+- [ ] A Cursor response taking longer than 90 seconds or three minutes can still complete within
+      its ten-minute budget; the panel keeps waiting. The native notification shows elapsed time,
+      offers cancellation and stops updating when the request ends. Test the full deadline too:
+      no automatic retry/model switch, preserved canvas and an actionable timeout message.
 - [ ] Verify browser harness cannot configure or invoke Cursor CLI. Check direct API providers still work.
 
 ## Try a real component

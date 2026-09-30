@@ -113,8 +113,8 @@ the response format, so design quality still needs review.
 Keep comparisons readable in narrow panels, with mobile-sized previews and an expanded view for
 closer inspection. Host status updates must preserve interactions in unchanged previews.
 
-The canvas surface is a viewing aid, separate from the component: light, dark or a transparency
-grid. It is never copied into exports. Share surface and dimensions across the comparison and chosen
+The canvas surface is a viewing aid, separate from the component: white by default (Light), with
+Dark and Transparency grid available on demand. It is never copied into exports. Share surface and dimensions across the comparison and chosen
 views. Offer exact 375/768/1280px widths and Fit column, plus compact 240px, standard 560px and tall
 720px heights. Show the actual iframe dimensions; exact widths scroll rather than shrink. Use a
 compact initial height for recognized controls/navigation. Changing these controls must preserve
@@ -187,8 +187,11 @@ Name the active operation and distinguish confirmation from execution. Copying, 
 setup must not say Generating. Scope errors to the operation that failed; normal cancellation is
 neutral. Status-only host updates omit source and implementations.
 
-Live generation has a 90-second timeout and a cancellable native notification. Closing the panel
-aborts the request; a late result must not reopen it.
+Cursor generation has a ten-minute timeout so reconstructing the original and three complete
+directions is not cut off at 90 seconds. Its cancellable native notification shows elapsed waiting
+time, not an estimated percentage. The panel waits for the full generation budget plus three
+minutes for confirmation/transport. Direct API generation keeps its 90-second timeout.
+Closing the panel aborts the request; a late result must not reopen it.
 
 The parent webview uses local nonce-protected scripts and blocks network access. Generated code
 runs only in `srcdoc` frames with `sandbox="allow-scripts"` and a restrictive CSP. Never add

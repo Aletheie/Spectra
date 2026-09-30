@@ -79,8 +79,11 @@ to authenticate the wrapper. The content frame inherits the wrapper's origin; it
 are rejected, as are unrelated origins. Keep `allow-same-origin` disabled for all generated frames.
 The separate preview diagnostic channel described below accepts only advisory status from its
 own iframe; it does not enter the editor command/state bridge. A malformed response cannot swallow a pending
-request; a valid response can still settle it, or the 180-second transport timeout releases the UI.
-This timeout does not silently approve an open native dialog; check or cancel the editor dialog.
+request; a valid response can still settle it, or the transport timeout releases the UI.
+The bridge allows Cursor generate/refine/remix thirteen minutes: the ten-minute generation budget
+plus three minutes for confirmation/transport. Other requests retain the 180-second transport
+timeout. These shared limits live in `src/domain/timeouts.ts`. Timing out does not silently approve
+an open native dialog; check or cancel the editor dialog.
 
 Run one mutating action at a time, including native dialogs. `getState` and `cancelGeneration`
 remain available while busy. Cancellation aborts an active generation; a pending confirmation
@@ -150,6 +153,10 @@ comparison session. No comparison results are persisted automatically.
   source-bearing argv is created by Spectra. The CLI may maintain its own transcripts.
 - Spawn directly with a minimal environment and a separate process group. Cancellation, panel
   disposal, timeout or excessive output terminates the group, escalating to SIGKILL after 500 ms.
+  Generation has a ten-minute absolute deadline, independent of the direct API's 90-second limit.
+  A native notification reports elapsed waiting time; it does not claim streamed model progress
+  or a completion estimate. Stop its timer on success, failure or cancellation. A timeout names
+  the limit and suggests retrying or choosing another model; never silently switch the model.
   Bound combined stdout/stderr to 1,500,000 bytes; never show or log raw CLI stderr.
   Delete the temporary workspace after process completion, including failure paths.
 - Accept only a successful CLI result envelope (`type=result`, `subtype=success`, `is_error=false`,
@@ -191,7 +198,7 @@ Anthropic uses `POST https://api.anthropic.com/v1/messages`, `x-api-key`,
 `anthropic-version: 2023-06-01`, separate system instructions and `max_tokens: 16000`.
 HTTP redirects are rejected. The host uses built-in fetch; no provider SDK or extra service is needed.
 
-Calls have a 90-second timeout covering response reading and a native cancellable notification.
+Direct API calls have a 90-second timeout covering response reading and a native cancellable notification.
 There is no automatic retry or vendor fallback. The response body is streamed with a 1,500,000-byte
 limit, including responses without a Content-Length header. Generation consumes only one response;
 truncated or refused output fails rather than committing partial code.
