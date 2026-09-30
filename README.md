@@ -24,7 +24,7 @@ npm run package
 ```
 
 Open the command palette in Cursor (**Cmd+Shift+P** on macOS, **Ctrl+Shift+P** on Windows/Linux).
-Run **Extensions: Install from VSIX…**, select `spectra-0.2.4.vsix`, and reload if prompted.
+Run **Extensions: Install from VSIX…**, select `spectra-0.2.5.vsix`, and reload if prompted.
 
 To try it straight away, run **Spectra: Open Curated Sample**. The Orbit pricing example uses
 prepared variants and preset edits; it works offline and doesn't call an AI provider.
