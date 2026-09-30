@@ -153,8 +153,12 @@ Compare. Expanded inspection is a separate preview and explicitly starts with fr
 state. Reset intentionally reloads a preview; exports contain the implementation, not runtime state.
 
 - **Copy for Cursor** writes a brief to the clipboard with the snapshot, relative path and range,
-  intent, selected rationale, and exact HTML/CSS/JS. The developer pastes it into Cursor to adapt the
-  result to their framework. Copying does not start an agent or change project files.
+  intent, selected rationale, exact HTML/CSS/JS and React code when present. The developer pastes
+  it into Cursor to review and adapt the result. Copying does not start an agent or change files.
+- TSX/JSX directions include React + Tailwind project code alongside the approximate HTML preview.
+  **Copy React** copies that exact revision. **Replace component…** opens a native before/after
+  diff and asks for confirmation before editing only the captured file or selection. It supports
+  Undo and follows the editor's Auto Save setting. It does not start an agent or install dependencies.
 - **Save HTML** shows a review warning, then a native save dialog for the selected revision.
   Cancelling writes nothing. The browser harness offers sample HTML download only.
 - Code inspection, preview, clipboard content, and export must use the same selected revision.
@@ -162,6 +166,14 @@ state. Reset intentionally reloads a preview; exports contain the implementation
 Editor clipboard and file exports require a trusted workspace. Standalone HTML omits the preview
 CSP and runs outside iframe isolation. Ask the developer to review the code before opening it or
 using it in production. Validation and sandboxing do not replace a code review.
+
+Replacement also requires trust and the original local file. If its contents or resolved path
+changed, capture it again before replacing. Check again after the diff and editor focus changes;
+cancellation or a failed edit preserves the comparison. After a successful replacement, track the
+new range for subsequent replacements while keeping the captured source and reconstructed Original
+fixed. Parse replacement syntax without executing it; check exports, imports and file directives.
+These checks do not prove type correctness, prop compatibility or behavior. Existing Tailwind
+configuration and project validation remain the developer's responsibility.
 
 ## Prepared sample
 
