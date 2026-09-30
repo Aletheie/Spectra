@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { reactLanguageFor, validReactImplementation } from './react'
 import { validEditorCommand, validVariant } from './validation'
 import { demoVariants } from '../variants'
+import { createHandoff } from './handoff'
 
 test('React artifacts are bounded and replacement commands cannot choose files or supply code', () => {
   assert.equal(
@@ -38,4 +39,8 @@ test('React artifacts are bounded and replacement commands cannot choose files o
       false,
     )
   }
+  const handoff = createHandoff(null, 'Clearer', { ...demoVariants[0], react })
+  assert.ok(handoff.includes(react.code))
+  assert.match(handoff, /React \+ Tailwind project implementation/)
+  assert.match(handoff, /separate visual approximation/)
 })
