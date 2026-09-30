@@ -26,7 +26,9 @@
     "dev:perseid": "vite --config examples/perseid/vite.config.ts",
     "build:perseid": "tsc --noEmit -p examples/perseid/tsconfig.json && vite build --config examples/perseid/vite.config.ts",
     "preview:perseid": "vite preview --config examples/perseid/vite.config.ts --host 127.0.0.1 --port 4174",
-    "lint:perseid": "oxlint --deny-warnings examples/perseid"
+    "test:perseid": "playwright test --config examples/perseid/playwright.config.ts",
+    "lint:perseid": "oxlint --deny-warnings examples/perseid",
+    "pretest:perseid": "npm run build:perseid"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
