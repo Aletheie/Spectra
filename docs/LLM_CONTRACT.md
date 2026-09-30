@@ -32,7 +32,9 @@ Each request has `type: 'request'`, a nonblank `id` (maximum 200 characters), an
 command's allowed fields:
 
 - `getState`, `captureSource`, `loadSample`, `openSource`, `cancelGeneration`: no additional fields.
-- `configureProvider`: `provider` is `cursor`, `openai` or `anthropic`.
+- `configureProvider`: `provider` is `cursor`, `openai` or `anthropic`. Cursor alone accepts
+  optional `action: 'check' | 'login'` for the fixed inline recovery actions. Without it,
+  the native setup picker remains available; arbitrary CLI arguments are never accepted.
 - `generate`: `provider` is `cursor`, `openai`, `anthropic` or `demo`; `prompt` is nonblank, at most 3,000
   characters. Optional `constraints` is a validated `DesignConstraints` object. No source IDs or replacement implementations.
 - `refine`: provider, prompt, optional constraints and exactly one `sourceIds` entry.
@@ -59,9 +61,13 @@ Host messages have three forms:
   and an optional `cancelled` boolean on unsuccessful responses.
 
 Provider status includes ID, label, model, and a `configured` boolean, never credentials.
-For direct APIs this means key present; for Cursor it means an explicit CLI login check succeeded
+For direct APIs this means key present; for Cursor it means a CLI login check succeeded
 in this panel. Neither status guarantees model access or successful generation. At most three unique
-live provider entries are allowed.
+live provider entries are allowed. Optional `detail` is bounded to 1,200 characters. Cursor
+may include `connection: checking | ready | signed-out | error`; configured is true exactly for
+ready. These are safe adapter summaries, never raw CLI stderr or account information. A direct
+provider SecretStorage failure disables only that provider, not Cursor or the initial state message.
+Concurrent refreshes publish only the newest result and read current Cursor readiness after key reads.
 
 The client validates host messages before publishing state or consuming pending responses. Source
 ranges, baseline consistency, implementations, field sizes, unique IDs, provider IDs and booleans are
@@ -116,12 +122,21 @@ comparison session. No comparison results are persisted automatically.
   and project variables. Use an existing CLI login or explicit browser login.
 - A connection check invokes `status --format json` with a 15-second timeout. Require both
   `status: "authenticated"` and boolean `isAuthenticated: true`. No account details enter the webview.
-  The check detects login, not server authorization, quota, or model access. Repeat it after
-  reopening the panel to reuse an existing CLI login.
+  The check detects login, not server authorization, quota, or model access. In trusted workspaces,
+  run a background check when opening the panel or getting its initial state, on a trust grant,
+  and when the editor window regains focus, until login is detected. Defer checks requested while busy until the action ends and
+  deduplicate concurrent checks. After explicitly starting login, poll every three seconds for at
+  most three minutes and also check when its terminal closes. Stop on success, reset or disposal. They send no source and never start generation. Missing CLI/login
+  does not interrupt opening the panel. Show checking/signed-out/error details beside the provider;
+  Check Cursor retries directly and Sign in to Cursor CLI starts the native login action.
+  Cancel pending checks on disposal, CLI path changes, or explicit Cursor setup so stale results
+  cannot restore readiness. After sign-out, suspend background checks until explicit sign-in/check
+  or a new panel session. Preserve the snapshot, drafts, and previews on status updates.
 - Each request gets a fresh temporary workspace with deny rules for Read, Write, Shell, WebFetch and
   Mcp. Invoke `--print --mode ask --output-format json --model <id> --sandbox enabled --workspace <temp> --trust`.
   Trust applies to the new temporary directory, never the captured source project.
-  No force, yolo, approve-mcps, resume, shell interpolation or project path arguments.
+  Model IDs may include validated bracket overrides such as `[context=1m,effort=high]`, passed
+  as one argument. No force, yolo, approve-mcps, resume, shell interpolation or project path arguments.
 - Pipe the bounded generation context and instructions through stdin. No source snapshot file or
   source-bearing argv is created by Spectra. The CLI may maintain its own transcripts.
 - Spawn directly with a minimal environment and a separate process group. Cancellation, panel

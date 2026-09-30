@@ -59,8 +59,17 @@ An unchecked item means it still needs testing.
 - [ ] AI providers → Cursor account → Sign in to Cursor opens native CLI browser login in the dedicated
       Spectra configuration. CLI credential storage may be shared with other CLI sessions. No password
       or token is entered into the webview or copied by the extension.
-- [ ] Check connection detects CLI login. Signed-out or malformed status leaves it unavailable.
-      The UI distinguishes login detection from model/quota checks. Recheck after reopening the panel.
+- [ ] Opening the panel detects an existing CLI login. After browser sign-in, returning to Cursor
+      updates readiness without another setup step. With a captured component and valid instruction,
+      Generate 3 directions becomes available. Source, instruction, and previews remain unchanged.
+- [ ] Finish browser login after returning focus early: bounded polling or closing the login terminal
+      still enables Generate. Check Cursor retries directly, without reopening the provider picker.
+- [ ] A missing CLI or failed status check shows its reason beside the prompt; a keychain error for
+      direct API keys does not disable Cursor or prevent initial source state from reaching the UI.
+- [ ] Configuring an available API provider selects it, preserving the instruction and existing canvas.
+- [ ] Check connection still reports setup errors. Signed-out or malformed status leaves it unavailable.
+      The UI distinguishes login detection from model/quota checks. Untrusted workspaces do not check
+      CLI login automatically, and a late result after sign-out or panel close cannot restore readiness.
 - [ ] Confirm model `auto` and an account-supported explicit `spectra.cursorModel`. Confirm editor chat
       selection/history is not inherited. Record actual model IDs and CLI version.
 - [ ] Consent names Cursor and includes snapshot/range, model, usage/billing and CLI history persistence.

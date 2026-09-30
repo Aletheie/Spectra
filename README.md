@@ -40,14 +40,15 @@ Open a workspace you trust, then run **Spectra: Configure AI Provider** from the
 
 1. Install the [Cursor CLI](https://cursor.com/docs/cli/installation) on the machine running the
    extension. This option supports macOS, Linux, and WSL.
-2. Select **Cursor account → Check connection** if you're already signed in to the CLI. Otherwise,
-   select **Sign in to Cursor**, finish the browser login, then run **Check connection**.
+2. Spectra detects an existing CLI login when you open the panel. To sign in, select
+   **Cursor account → Sign in to Cursor**, finish the browser login, then return to Cursor.
+   Use **Check Cursor** beside the prompt to retry directly. The panel shows the actual setup
+   error instead of silently keeping Generate disabled. **Check connection** remains in AI providers.
 3. Select **Cursor account** in the comparison panel when generating.
 
 This uses the CLI's Cursor account. You don't need an OpenAI or Anthropic key, but your Cursor
-account's usage limits and billing apply. Spectra checks the login again when you ask it to;
-repeat **Check connection** after reopening the panel. Model access and quota are checked when
-you generate.
+account's usage limits and billing apply. If login hasn't been detected yet, Spectra checks on
+opening the panel, when you return to Cursor, and for up to three minutes after starting login. Model access and quota are checked when you generate.
 
 The model defaults to `auto`. Use **List models** during setup and set `spectra.cursorModel` to
 choose another. The model and conversation from Cursor's editor chat are separate.

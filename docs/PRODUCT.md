@@ -69,8 +69,14 @@ without a source or instruction reason. CSS-only demonstrations must be visibly 
 
 Cursor account is the default engine for custom source. Its setup provides sign-in, a connection
 check, model listing, sign-out, and installation instructions. The connection check detects a CLI
-login; model access and quota are checked during generation. Repeat the check after reopening the
-panel. Editor chat history and its model selection are separate from the CLI.
+login; model access and quota are checked during generation. In a trusted workspace, detect an
+existing login when the panel opens and after returning to Cursor, until login is detected.
+Keep Check Cursor and Sign in to Cursor CLI beside a blocked generation control, with the
+actual checking/signed-out/error state. After starting login, detect completion even if browser
+focus returns before credentials are saved; poll for at most three minutes and observe terminal
+closure. A slow older status refresh cannot overwrite newer readiness. Configuring an available
+provider in the panel selects that provider. Failure to read a direct API key must not block Cursor. Editor chat history and its model selection
+are separate from the CLI.
 
 Cursor CLI supports macOS, Linux, and WSL extension hosts. `spectra.cursorModel` selects a CLI model;
 `spectra.cursorCliPath` optionally supplies an absolute executable path without arguments. Run each
