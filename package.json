@@ -22,7 +22,11 @@
     "format:check": "oxfmt --check .",
     "test": "node --import tsx --test src/**/*.test.ts extension/*.test.ts",
     "check": "npm run lint && npm run format:check && npm test && npm run build",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "dev:perseid": "vite --config examples/perseid/vite.config.ts",
+    "build:perseid": "tsc --noEmit -p examples/perseid/tsconfig.json && vite build --config examples/perseid/vite.config.ts",
+    "preview:perseid": "vite preview --config examples/perseid/vite.config.ts --host 127.0.0.1 --port 4174",
+    "lint:perseid": "oxlint --deny-warnings examples/perseid"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
