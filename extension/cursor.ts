@@ -3,6 +3,7 @@ import { constants } from 'node:fs'
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
+import { stripVTControlCharacters } from 'node:util'
 import { isRecord } from '../src/domain/guards'
 import {
   generationMessage,
@@ -23,6 +24,7 @@ export type CursorRun = {
   timeoutMs: number
 }
 export type CursorRunner = (connection: CursorConnection, run: CursorRun) => Promise<string>
+export type CursorModel = { id: string; label: string }
 
 const validModelId = (model: string) =>
   model.length <= 200 &&
@@ -212,6 +214,60 @@ export const checkCursorConnection = async (
     const status = jsonObject(output)
     return status.status === 'authenticated' && status.isAuthenticated === true
   })
+
+export const listCursorModels = async (
+  connection: CursorConnection,
+  signal: AbortSignal,
+  runner: CursorRunner = runCursor,
+): Promise<CursorModel[]> => {
+  const unavailable =
+    'Could not load Cursor models. Check your CLI login and connection, or set spectra.cursorModel in editor settings. Your current model is unchanged.'
+  if (signal.aborted) throw new Error('Cursor model listing cancelled.')
+  let output: string
+  try {
+    output = await withCursorWorkspace(async (cwd) => {
+      await prepareCursorProfile(connection.configDir)
+      return runner(connection, {
+        args: ['--list-models'],
+        cwd,
+        signal,
+        timeoutMs: 20000,
+      })
+    })
+  } catch {
+    throw new Error(signal.aborted ? 'Cursor model listing cancelled.' : unavailable)
+  }
+  if (signal.aborted) throw new Error('Cursor model listing cancelled.')
+  // CLI exposes a text listing, not JSON. Only model rows enter the native picker;
+  // never forward the raw output, account details or terminal control sequences.
+  if (output.length > 100000) throw new Error(unavailable)
+  const lines = stripVTControlCharacters(output).split(/\r?\n/)
+  const header = lines.findIndex((line) => line.trim() === 'Available models')
+  if (header < 0) throw new Error(unavailable)
+  const models: CursorModel[] = []
+  const ids = new Set<string>()
+  for (const line of lines.slice(header + 1)) {
+    const row = line.trim().match(/^(\S+) - (.+)$/)
+    if (!row) continue
+    const [, id, rawLabel] = row
+    const label = rawLabel.replace(/[\u200b-\u200d\ufeff]/g, '').trim()
+    if (
+      !validModelId(id) ||
+      !label ||
+      label.length > 160 ||
+      [...label].some(
+        (character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
+      ) ||
+      ids.has(id) ||
+      models.length >= 512
+    )
+      throw new Error(unavailable)
+    ids.add(id)
+    models.push({ id, label })
+  }
+  if (!models.length) throw new Error(unavailable)
+  return models
+}
 
 export const generateWithCursor = async (
   connection: CursorConnection,

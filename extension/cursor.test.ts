@@ -10,6 +10,7 @@ import {
   cursorEnvironment,
   cursorPermissions,
   generateWithCursor,
+  listCursorModels,
   resolveCursorExecutable,
   runCursor,
   type CursorRunner,
@@ -287,4 +288,103 @@ test('Cursor parameterized model IDs stay a single argument; malformed overrides
       )
     }
     assert.equal(calls, 1)
+  }))
+
+test('Cursor models load without a terminal or source, validate rows and clean up the temporary workspace', async () =>
+  profile(async (configDir) => {
+    let cwd = ''
+    const models = await listCursorModels(
+      { executable: '/unused/agent', configDir },
+      signal(),
+      async (_connection, run) => {
+        cwd = run.cwd
+        assert.deepEqual(run.args, ['--list-models'])
+        assert.equal(run.input, undefined)
+        assert.equal(run.timeoutMs, 20000)
+        assert.notEqual(cwd, configDir)
+        assert.deepEqual(await readdir(cwd), ['.cursor'])
+        assert.deepEqual(
+          JSON.parse(await readFile(join(cwd, '.cursor', 'cli.json'), 'utf8')).permissions,
+          cursorPermissions,
+        )
+        return '\u001b[1mAvailable models\u001b[0m\r\n\r\nauto - Auto (default)\r\nmodel-a[effort=high] - Model A High\u200b\r\n\r\nUse --model to choose a model.\r\n'
+      },
+    )
+    assert.deepEqual(models, [
+      { id: 'auto', label: 'Auto (default)' },
+      { id: 'model-a[effort=high]', label: 'Model A High' },
+    ])
+    await assert.rejects(access(cwd))
+  }))
+
+test('Cursor model discovery accepts large catalogs, including the 246-row CLI response', async () =>
+  profile(async (configDir) => {
+    for (const count of [246, 512]) {
+      const expected = Array.from({ length: count }, (_, i) => ({
+        id: `model-${i}`,
+        label: `Model ${i}`,
+      }))
+      const models = await listCursorModels(
+        { executable: '/unused/agent', configDir },
+        signal(),
+        async () =>
+          'Available models\n' + expected.map(({ id, label }) => `${id} - ${label}`).join('\n'),
+      )
+      assert.deepEqual(models, expected)
+    }
+  }))
+
+test('Cursor model discovery rejects malformed, duplicate, oversized and failed responses without leaking output', async () =>
+  profile(async (configDir) => {
+    const connection = { executable: '/unused/agent', configDir }
+    for (const output of [
+      '',
+      'Account: private@example.test',
+      'Available models\n',
+      'Available models\nmodel-a - Model A\nmodel-a - Duplicate',
+      'Available models\nmodel;bad - Model A',
+      'Available models\nmodel-a - ' + 'x'.repeat(161),
+      'Available models\nmodel-a - Contains\0control',
+      'Available models\n' +
+        Array.from({ length: 513 }, (_, i) => `model-${i} - Model ${i}`).join('\n'),
+      'Available models\n' + 'x'.repeat(100001),
+    ]) {
+      let cwd = ''
+      await assert.rejects(
+        listCursorModels(connection, signal(), async (_connection, run) => {
+          cwd = run.cwd
+          return output
+        }),
+        /Could not load Cursor models/,
+      )
+      await assert.rejects(access(cwd))
+    }
+    await assert.rejects(
+      listCursorModels(connection, signal(), async () => {
+        throw new Error('SECRET_ACCOUNT_DETAILS')
+      }),
+      (error: unknown) =>
+        error instanceof Error &&
+        !error.message.includes('SECRET') &&
+        /unchanged/.test(error.message),
+    )
+    const abort = new AbortController()
+    abort.abort()
+    let calls = 0
+    await assert.rejects(
+      listCursorModels(connection, abort.signal, async () => {
+        calls++
+        return 'Available models\nauto - Auto'
+      }),
+      /cancelled/,
+    )
+    assert.equal(calls, 0)
+    const late = new AbortController()
+    await assert.rejects(
+      listCursorModels(connection, late.signal, async () => {
+        late.abort()
+        return 'Available models\nauto - Auto'
+      }),
+      /cancelled/,
+    )
   }))
