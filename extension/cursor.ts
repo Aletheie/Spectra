@@ -5,11 +5,11 @@ import { homedir, tmpdir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { stripVTControlCharacters } from 'node:util'
 import { isRecord } from '../src/domain/guards'
+import { CURSOR_GENERATION_TIMEOUT_MS } from '../src/domain/timeouts'
 import {
   generationMessage,
   MAX_RESPONSE_BYTES,
   parseProviderResult,
-  PROVIDER_TIMEOUT_MS,
   systemPrompt,
   validateInput,
   type GenerationInput,
@@ -22,6 +22,7 @@ export type CursorRun = {
   input?: string
   signal: AbortSignal
   timeoutMs: number
+  timeoutMessage?: string
 }
 export type CursorRunner = (connection: CursorConnection, run: CursorRun) => Promise<string>
 export type CursorModel = { id: string; label: string }
@@ -136,7 +137,10 @@ export const runCursor: CursorRunner = async (connection, run) => {
     const abort = () => stop(cancelled)
     const timeout = setTimeout(
       () =>
-        stop('Cursor CLI timed out. Try again with a smaller component; your canvas is unchanged.'),
+        stop(
+          run.timeoutMessage ??
+            `Cursor CLI timed out after ${Math.ceil(run.timeoutMs / 1000)} seconds. Check your connection and try again; your canvas is unchanged.`,
+        ),
       run.timeoutMs,
     )
     run.signal.addEventListener('abort', abort, { once: true })
@@ -301,7 +305,9 @@ export const generateWithCursor = async (
       cwd,
       input: `${systemPrompt}\n\nUse only the data below. Do not call tools, read files, run commands or fetch URLs. Respond with the requested JSON only.\n\n${generationMessage(input)}`,
       signal,
-      timeoutMs: PROVIDER_TIMEOUT_MS,
+      timeoutMs: CURSOR_GENERATION_TIMEOUT_MS,
+      timeoutMessage:
+        'Cursor generation timed out after 10 minutes. Try again or choose another model in AI providers. Your canvas is unchanged.',
     })
     if (signal.aborted) throw new Error(cancelled)
     const envelope = jsonObject(output)

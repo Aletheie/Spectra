@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { initialEditorState, type EditorRequest } from '../domain/protocol'
+import { initialEditorState, type EditorCommand, type EditorRequest } from '../domain/protocol'
+import { CURSOR_GENERATION_TIMEOUT_MS, EDITOR_REQUEST_TIMEOUT_MS } from '../domain/timeouts'
 
 // Exercise the real client boundary without granting tests an editor/file capability.
 test('editor bridge sends commands and accepts only host responses, not iframe messages', async (t) => {
@@ -142,6 +143,35 @@ test('editor bridge sends commands and accepts only host responses, not iframe m
   const afterTimeout = bridge.sendToEditor({ command: 'getState' })
   emit({ type: 'response', id: messages[4].id, ok: true, message: 'Recovered' })
   assert.equal(await afterTimeout, 'Recovered')
+
+  // Cursor generate/refine/remix may outlast both former 90s/180s deadlines.
+  for (const command of [
+    { command: 'generate', provider: 'cursor', prompt: 'Clarify the section' },
+    { command: 'refine', provider: 'cursor', prompt: 'Simplify', sourceIds: ['chosen'] },
+    { command: 'remix', provider: 'cursor', prompt: 'Combine', sourceIds: ['a', 'b'] },
+  ] satisfies EditorCommand[]) {
+    const pending = bridge.sendToEditor({ ...command })
+    const request = messages.at(-1)!
+    const unexpectedTimeout = assert.doesNotReject(pending)
+    t.mock.timers.tick(CURSOR_GENERATION_TIMEOUT_MS)
+    emit({ type: 'response', id: request.id, ok: true, message: 'Directions ready' })
+    assert.equal(await pending, 'Directions ready')
+    await unexpectedTimeout
+  }
+
+  const stalled = bridge.sendToEditor({ command: 'generate', provider: 'cursor', prompt: 'Try' })
+  const stalledId = messages.at(-1)!.id
+  const stalledAssertion = assert.rejects(stalled, /editor did not respond/)
+  t.mock.timers.tick(CURSOR_GENERATION_TIMEOUT_MS + EDITOR_REQUEST_TIMEOUT_MS)
+  await stalledAssertion
+  emit({ type: 'response', id: stalledId, ok: true, message: 'late' })
+
+  const cancel = bridge.sendToEditor({ command: 'cancelGeneration' })
+  const cancelId = messages.at(-1)!.id
+  const cancelAssertion = assert.rejects(cancel, /editor did not respond/)
+  t.mock.timers.tick(EDITOR_REQUEST_TIMEOUT_MS)
+  await cancelAssertion
+  emit({ type: 'response', id: cancelId, ok: true, message: 'late' })
 
   unsubscribe()
   emit({ type: 'state', state: initialEditorState })

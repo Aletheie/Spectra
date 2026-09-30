@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { original, demoVariants } from '../src/variants'
 import type { GenerationInput } from './providers'
+import { CURSOR_GENERATION_TIMEOUT_MS } from '../src/domain/timeouts'
 import {
   checkCursorConnection,
   cursorEnvironment,
@@ -263,6 +264,38 @@ else setInterval(() => {}, 1000)
       ),
       /Could not start/,
     )
+  }))
+
+test('Cursor generation survives the old CLI and panel deadlines and returns a complete response', async (t) =>
+  profile(async (configDir) => {
+    const script = join(configDir, 'slow-generation.cjs')
+    await writeFile(
+      script,
+      `process.stdin.resume(); process.stdin.on('end', () => process.stdout.write(${JSON.stringify(envelope({ original, variants: demoVariants }))}));`,
+    )
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    let cwd = ''
+    let calls = 0
+    const result = await generateWithCursor(
+      { executable: process.execPath, configDir },
+      'auto',
+      { ...input, source: { ...input.source!, language: 'html' } },
+      signal(),
+      async (connection, run) => {
+        calls++
+        cwd = run.cwd
+        assert.equal(run.timeoutMs, CURSOR_GENERATION_TIMEOUT_MS)
+        assert.match(run.timeoutMessage ?? '', /10 minutes/)
+        const pending = runCursor(connection, { ...run, args: [script] })
+        // Advance wall-clock deadlines while the real child process is still starting.
+        t.mock.timers.tick(180001)
+        return pending
+      },
+    )
+    assert.equal(calls, 1, 'long requests must not trigger retries')
+    assert.equal(result.original?.id, 'original')
+    assert.equal(result.variants.length, 3)
+    await assert.rejects(access(cwd))
   }))
 
 test('Cursor parameterized model IDs stay a single argument; malformed overrides never launch', async () =>

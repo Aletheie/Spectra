@@ -13,6 +13,7 @@ import { parseGeneratedVariants, validEditorCommand, validHostMessage } from '..
 import { original } from '../variants'
 import { withLineage } from '../domain/lineage'
 import { OperationCancelled } from '../domain/errors'
+import { editorRequestTimeout } from '../domain/timeouts'
 
 type EditorApi = { postMessage: (message: EditorRequest) => void }
 type EditorWindow = Window & {
@@ -166,7 +167,7 @@ export const sendToEditor = (command: EditorCommand): Promise<string | undefined
           'The editor did not respond. Check native confirmation dialogs or reopen Spectra.',
         ),
       )
-    }, 180000)
+    }, editorRequestTimeout(command))
     pending.set(id, { resolve, reject, timer })
     try {
       api.postMessage({ ...command, type: 'request', id })
