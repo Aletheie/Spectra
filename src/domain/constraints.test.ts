@@ -9,7 +9,7 @@ import {
 import { initialEditorState } from './protocol'
 import { validEditorCommand, validEditorState } from './validation'
 import { createHandoff } from './handoff'
-import { original, demoVariants } from '../variants'
+import { original, demoVariants as previewVariants } from '../variants'
 import { applyGeneration, resolveConstraints } from '../../extension/session'
 import {
   generationMessage,
@@ -17,6 +17,11 @@ import {
   validateInput,
   type GenerationInput,
 } from '../../extension/providers'
+
+const demoVariants = previewVariants.map((variant) => ({
+  ...variant,
+  react: { language: 'tsx' as const, code: '<button className="p-4">Save</button>' },
+}))
 
 const constraints = {
   ...emptyConstraints,

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { original, demoVariants } from '../src/variants'
+import { original, demoVariants as previewVariants } from '../src/variants'
 import type { SourceContext } from '../src/domain/protocol'
 import {
   generateWithProvider,
@@ -9,6 +9,14 @@ import {
   validateInput,
   type GenerationInput,
 } from './providers'
+
+const demoVariants = previewVariants.map((variant) => ({
+  ...variant,
+  react: {
+    language: 'tsx' as const,
+    code: 'export const Card = () => <article className="rounded-xl p-4">Card</article>',
+  },
+}))
 
 const source: SourceContext = {
   id: 'capture',
@@ -219,5 +227,46 @@ test('cancellation aborts requests and never retries or returns demo results', a
       },
     ),
     /cancelled/,
+  )
+})
+
+test('React targets require exact-language project code on every revision and never synthesize it from preview HTML', () => {
+  const reactOutput = { original, variants: demoVariants }
+  assert.equal(
+    parseProviderResult(JSON.stringify(reactOutput), input).variants[0].react?.code,
+    demoVariants[0].react.code,
+  )
+  const missing = demoVariants.map(({ react: _react, ...variant }) => variant)
+  for (const variants of [
+    missing,
+    demoVariants.map((variant) => ({ ...variant, react: { ...variant.react, language: 'jsx' } })),
+    demoVariants.map((variant) => ({ ...variant, react: { ...variant.react, code: '' } })),
+  ]) {
+    assert.throws(() => parseProviderResult(JSON.stringify({ original, variants }), input))
+  }
+  const htmlInput = {
+    ...input,
+    source: { ...source, relativePath: 'src/card.html', language: 'html' },
+  }
+  assert.equal(
+    parseProviderResult(JSON.stringify({ original, variants: missing }), htmlInput).variants[0]
+      .react,
+    undefined,
+  )
+  assert.throws(() => parseProviderResult(JSON.stringify(reactOutput), htmlInput), /project code/)
+  const jsxInput = {
+    ...input,
+    source: { ...source, relativePath: 'src/Card.jsx', language: 'javascriptreact' },
+  }
+  const jsxOutput = {
+    original,
+    variants: demoVariants.map((variant) => ({
+      ...variant,
+      react: { language: 'jsx', code: 'export const Card = () => <article className="p-4" />' },
+    })),
+  }
+  assert.equal(
+    parseProviderResult(JSON.stringify(jsxOutput), jsxInput).variants[0].react?.language,
+    'jsx',
   )
 })

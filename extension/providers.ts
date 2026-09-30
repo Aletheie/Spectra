@@ -9,6 +9,7 @@ import type { GenerationAction, Variant } from '../src/domain/types'
 import { validVariant } from '../src/domain/validation'
 import { isRecord } from '../src/domain/guards'
 import { componentContextFor } from '../src/domain/component'
+import { reactLanguageFor } from '../src/domain/react'
 import {
   emptyConstraints,
   validConstraints,
@@ -39,6 +40,13 @@ export const generationMessage = (input: GenerationInput) =>
     original: input.original,
     sourceVariants: input.sources,
     reconstructOriginal: input.original === null,
+    projectOutput: reactLanguageFor(input.source)
+      ? {
+          format: 'react-tailwind',
+          language: reactLanguageFor(input.source),
+          scope: input.source?.selection ? 'selection' : 'file',
+        }
+      : { format: 'html' },
   })
 
 type AnthropicTextBlock = { type: 'text'; text: string }
@@ -60,6 +68,7 @@ Otherwise return {variants} only. Never replace the supplied original.
 For generate: exactly THREE meaningfully different directions, varying layout, hierarchy and interaction, not just palette. Hypotheses explain the differences briefly; do not provide hidden reasoning.
 For refine: exactly ONE revision of the exact sourceVariants[0] implementation, preserve its direction and apply the instruction.
 For remix: exactly ONE coherent combination of the exact two supplied sourceVariants, in their supplied order, following which aspects to borrow. Preserve facts; don't concatenate incompatible documents.
+When projectOutput.format=react-tailwind, EVERY direction must additionally contain react:{language:projectOutput.language,code:string}. Do not add react to original. The react.code is the exact replacement for the captured file or selected snippet, under60000 characters, without Markdown fences. Use real React JSX/TSX and static Tailwind utility classes, not HTML class attributes or imperative DOM event wiring. Preserve component exports, names, public props/types, callbacks, data flow, hooks, accessibility, imports and framework directives (including 'use client'). Do not substitute real behavior with the preview's local simulation. Reuse existing dependencies, helpers and Tailwind tokens; React hooks may be imported from react for a full file. Do not introduce new packages, files, global CSS, Tailwind configuration, CDN assets or runtime compilers. Keep class strings statically discoverable. For a selection return ONLY its replacement, preserving indentation and surrounding syntax; do not add top-level imports/exports unless they are inside the captured selection. When context is incomplete preserve unresolved references and describe limitations in the hypothesis, never invent mock production data. The html/css/js fields remain a self-contained visual approximation of that SAME React design, with local simulation only. The preview restrictions above apply to those three preview fields; project code preserves the original application's callbacks/navigation/data access. For refine/remix update both react.code and its preview together, using the exact stored React sources. When projectOutput.format=html omit react.
 Keep implementations compact (HTML/CSS each under100000 chars, JS under50000).`
 
 export const validateInput = (input: GenerationInput) => {
@@ -95,6 +104,7 @@ const implementation = (value: unknown, original = false): Variant => {
     html: value.html,
     css: value.css,
     js: value.js,
+    ...(value.react ? { react: { ...value.react } } : {}),
   }
 }
 
@@ -118,9 +128,19 @@ export const parseProviderResult = (content: string, input: GenerationInput): Ge
       'The provider returned the wrong response shape or number of directions. Your canvas is unchanged.',
     )
   }
+  const language = reactLanguageFor(input.source)
+  const variants = data.variants.map((value) => implementation(value))
+  if (
+    variants.some((variant) =>
+      language ? variant.react?.language !== language : variant.react !== undefined,
+    )
+  )
+    throw new Error(
+      'The provider did not return the required project code for this component. Your previous canvas is unchanged.',
+    )
   return {
     ...(reconstruct ? { original: implementation(data.original, true) } : {}),
-    variants: data.variants.map((value) => implementation(value)),
+    variants,
   }
 }
 

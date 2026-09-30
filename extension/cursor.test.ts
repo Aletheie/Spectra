@@ -3,7 +3,7 @@ import { access, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { original, demoVariants } from '../src/variants'
+import { original, demoVariants as previewVariants } from '../src/variants'
 import type { GenerationInput } from './providers'
 import { CURSOR_GENERATION_TIMEOUT_MS } from '../src/domain/timeouts'
 import {
@@ -16,6 +16,14 @@ import {
   runCursor,
   type CursorRunner,
 } from './cursor'
+
+const demoVariants = previewVariants.map((variant) => ({
+  ...variant,
+  react: {
+    language: 'tsx' as const,
+    code: 'export const Card = () => <article className="rounded-xl p-4">Card</article>',
+  },
+}))
 
 const input: GenerationInput = {
   action: 'generate',
@@ -279,7 +287,7 @@ test('Cursor generation survives the old CLI and panel deadlines and returns a c
     const result = await generateWithCursor(
       { executable: process.execPath, configDir },
       'auto',
-      { ...input, source: { ...input.source!, language: 'html' } },
+      input,
       signal(),
       async (connection, run) => {
         calls++

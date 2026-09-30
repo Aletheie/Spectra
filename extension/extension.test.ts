@@ -16,7 +16,7 @@ const bundle = buildSync({
   bundle: true,
   platform: 'node',
   format: 'cjs',
-  external: ['vscode', './providers', './cursor'],
+  external: ['vscode', './providers', './cursor', 'typescript'],
   write: false,
 }).outputFiles[0].text
 
@@ -73,6 +73,8 @@ const setup = () => {
     languageId: 'typescriptreact',
     lineCount: 12,
     getText: () => '<article>Unsaved selection</article>',
+    offsetAt: (position: { line: number }) =>
+      position.line <= 2 ? 0 : '<article>Unsaved selection</article>'.length,
   }
   const panel = {
     webview: {
@@ -281,7 +283,14 @@ const setup = () => {
               ...(input.original ? {} : { original }),
               variants: demoVariants
                 .slice(0, input.action === 'generate' ? 3 : 1)
-                .map((variant, i) => ({ ...variant, id: `cursor-${cursorCalls.length}-${i}` })),
+                .map((variant, i) => ({
+                  ...variant,
+                  id: `cursor-${cursorCalls.length}-${i}`,
+                  react: {
+                    language: 'tsx',
+                    code: '<article className="p-4">Unsaved selection</article>',
+                  },
+                })),
             }
           },
         }
