@@ -263,3 +263,28 @@ else setInterval(() => {}, 1000)
       /Could not start/,
     )
   }))
+
+test('Cursor parameterized model IDs stay a single argument; malformed overrides never launch', async () =>
+  profile(async (configDir) => {
+    const model = 'claude-opus-4-8[context=1m,effort=high,fast=false]'
+    let calls = 0
+    const runner: CursorRunner = async (_connection, run) => {
+      calls++
+      assert.equal(run.args[run.args.indexOf('--model') + 1], model)
+      return envelope({ original, variants: demoVariants })
+    }
+    const connection = { executable: '/unused/agent', configDir }
+    await generateWithCursor(connection, model, input, signal(), runner)
+    for (const invalid of [
+      'auto --force',
+      'auto[effort=high];echo',
+      'auto[effort=$(id)]',
+      'auto[]',
+    ]) {
+      await assert.rejects(
+        generateWithCursor(connection, invalid, input, signal(), runner),
+        /valid Cursor model/,
+      )
+    }
+    assert.equal(calls, 1)
+  }))

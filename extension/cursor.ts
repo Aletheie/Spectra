@@ -24,6 +24,12 @@ export type CursorRun = {
 }
 export type CursorRunner = (connection: CursorConnection, run: CursorRun) => Promise<string>
 
+const validModelId = (model: string) =>
+  model.length <= 200 &&
+  /^[a-zA-Z0-9_.:/-]+(?:\[[a-zA-Z0-9_.-]+=[a-zA-Z0-9_.-]+(?:,[a-zA-Z0-9_.-]+=[a-zA-Z0-9_.-]+)*\])?$/.test(
+    model,
+  )
+
 const cancelled = 'Cursor generation cancelled. Your previous canvas is unchanged.'
 const failed =
   'Cursor CLI failed. Check your Cursor login, model access and usage limits in AI providers. Your canvas is unchanged.'
@@ -216,7 +222,8 @@ export const generateWithCursor = async (
 ) => {
   validateInput(input)
   if (signal.aborted) throw new Error(cancelled)
-  if (!/^[a-zA-Z0-9_.:/-]{1,200}$/.test(model))
+  // Parameter overrides are supported by current CLI versions; they remain one argv value.
+  if (!validModelId(model))
     throw new Error('Set a valid Cursor model ID in spectra.cursorModel (for example auto).')
   await prepareCursorProfile(connection.configDir)
   return withCursorWorkspace(async (cwd) => {
