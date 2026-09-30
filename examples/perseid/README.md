@@ -150,3 +150,20 @@ a označení simulace. Zůstaň u kompaktní komponenty bez další stránky či
 
 `npm run dev` v kořeni spouští pouze vývojový browser harness Spectry s vestavěným samplem.
 Pro tyto HTML soubory ho nepotřebujete; pro skutečný capture a generování používejte extension v Cursoru.
+
+## Ověření tohoto dema
+
+Při přípravě 30. září 2026 byly všechny čtyři HTML stránky vyzkoušeny v headless Chromu
+při šířkách 300, 375, 768 a 1280 px bez horizontálního přetékání. Prošly výpočty a chyby
+formuláře, filtry a postup seznamu, náhradní termín i refundace a návraty fokusu.
+Rozcestník prošel kontrolou odkazů a obou větví kopírování zadání s testovací náhradou
+clipboardu. Stránky nevyvolaly chyby JavaScriptu ani HTTP požadavky.
+
+Byly zkontrolovány popisky formulářových prvků, viditelný fokus a vybrané páry textu
+a pozadí; nejnižší naměřený kontrast těchto párů byl 6,28 : 1. Nejde o úplný audit WCAG.
+Všechny tři vstupy prošly skutečnou funkcí `validateSource` a kontrolou umístění uvnitř
+workspace; každý má méně než 18 000 znaků.
+
+Tato kontrola neprováděla capture v reálném Extension Development Hostu, živé generování,
+nativní clipboard ani Save HTML. Tyto kroky jsou součástí postupu výše a je potřeba je
+vyzkoušet s připojeným poskytovatelem v Cursoru.
