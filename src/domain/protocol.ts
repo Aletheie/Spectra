@@ -20,6 +20,8 @@ export type ProviderInfo = {
   label: string
   model: string
   configured: boolean
+  connection?: 'checking' | 'ready' | 'signed-out' | 'error'
+  detail?: string
 }
 
 export type EditorState = {
@@ -41,7 +43,7 @@ export type EditorCommand =
   | { command: 'loadSample' }
   | { command: 'openSource' }
   | { command: 'cancelGeneration' }
-  | { command: 'configureProvider'; provider: LiveProvider }
+  | { command: 'configureProvider'; provider: LiveProvider; action?: 'check' | 'login' }
   | { command: 'generate'; provider: Engine; prompt: string; constraints?: DesignConstraints }
   | {
       command: 'refine'

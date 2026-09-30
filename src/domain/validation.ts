@@ -106,7 +106,12 @@ export const validEditorCommand = (value: unknown): value is EditorCommand => {
     case 'cancelGeneration':
       return onlyKeys(value, ['command'])
     case 'configureProvider':
-      return onlyKeys(value, ['command', 'provider']) && liveProvider(value.provider)
+      return (
+        onlyKeys(value, ['command', 'provider', 'action']) &&
+        liveProvider(value.provider) &&
+        (value.action === undefined ||
+          (value.provider === 'cursor' && (value.action === 'check' || value.action === 'login')))
+      )
     case 'copyHandoff':
     case 'exportHtml':
       return onlyKeys(value, ['command', 'variantId']) && id(value.variantId)
@@ -163,7 +168,12 @@ const validProvider = (provider: unknown): provider is ProviderInfo =>
   liveProvider(provider.id) &&
   text(provider.label, 161) &&
   text(provider.model, 201) &&
-  typeof provider.configured === 'boolean'
+  typeof provider.configured === 'boolean' &&
+  (provider.detail === undefined || text(provider.detail, 1201)) &&
+  (provider.connection === undefined ||
+    (provider.id === 'cursor' &&
+      ['checking', 'ready', 'signed-out', 'error'].includes(String(provider.connection)) &&
+      provider.configured === (provider.connection === 'ready')))
 
 const validStoredVariant = (variant: unknown): variant is Variant =>
   validVariant(variant) && 'id' in variant && id(variant.id)

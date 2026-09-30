@@ -200,3 +200,36 @@ test('host responses require actual booleans and string messages before settling
   ])
     assert.equal(validHostMessage(message), false)
 })
+
+test('Cursor setup actions and connection details are bounded allowlisted messages', () => {
+  for (const action of ['check', 'login']) {
+    assert.equal(
+      validEditorCommand({ command: 'configureProvider', provider: 'cursor', action }),
+      true,
+    )
+    assert.equal(
+      validEditorCommand({ command: 'configureProvider', provider: 'openai', action }),
+      false,
+    )
+  }
+  assert.equal(
+    validEditorCommand({ command: 'configureProvider', provider: 'cursor', action: 'logout' }),
+    false,
+  )
+  const provider = {
+    id: 'cursor',
+    label: 'Cursor account',
+    model: 'auto',
+    configured: false,
+    connection: 'checking',
+    detail: 'Checking login…',
+  }
+  assert.equal(validEditorState({ ...initialEditorState, providers: [provider] }), true)
+  for (const invalid of [
+    { ...provider, configured: true },
+    { ...provider, connection: 'executing-shell' },
+    { ...provider, detail: 'x'.repeat(1201) },
+    { ...provider, detail: { token: 'secret' } },
+  ])
+    assert.equal(validEditorState({ ...initialEditorState, providers: [invalid] }), false)
+})
