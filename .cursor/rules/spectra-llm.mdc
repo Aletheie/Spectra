@@ -1,0 +1,32 @@
+---
+description: Extension host secrets, source transmission, provider contracts, and atomic state
+globs: "extension/**/*.ts,src/domain/protocol.ts,src/domain/validation.ts"
+alwaysApply: false
+---
+
+# Spectra host and AI boundary
+- Follow `AGENTS.md` and `docs/LLM_CONTRACT.md`. Active prompt/adapters are in
+  `extension/providers.ts` and `extension/cursor.ts`; session/commands are in `extension/extension.ts`.
+- No Express/API proxy or environment-file credentials. Keys are entered in native password
+  prompts and stored only in VS Code SecretStorage; never emit them to webview, files or logs.
+- Require workspace trust for source, keys, live calls and exports; confirm source transmission
+  natively before each call. Direct API keys are separate from explicit Cursor CLI login.
+- Cursor CLI uses the dedicated Spectra configuration, temporary workspace, denied tools, stdin context,
+  bounded subprocess and shared result validation described in `docs/LLM_CONTRACT.md`. No implicit
+  editor credentials or automatic repository edits. CLI history is separate from panel session state.
+- Capture current selection/document including unsaved text; max 60,000 chars. No crawling imports.
+  Keep source Uri private; guard local workspace/file boundaries and obvious sensitive paths.
+- Runtime-validate allowlisted commands and IDs. Resolve exact source variants in host state.
+- Generate: no selected sources, exactly three directions. First custom-source call also returns
+  original reconstruction; subsequent calls must not replace the fixed original.
+- Refine: one exact selected implementation → one result; remix: exactly two distinct IDs → one.
+- Implementations have name, hypothesis, changes, html, css, js. Assign IDs in the host;
+  validate field types/counts/sizes/nonblank content and entire candidate state before committing.
+- Preserve source facts/billing units; no genuine-looking invented proof. Request concise hypotheses,
+  not hidden reasoning. Palette-only alternatives do not satisfy live generation requirements.
+- Output self-contained responsive HTML/CSS/vanilla JS, not React, external assets or network calls.
+- One mutation at a time; 90-second live timeout, bounded responses and cancellable notification.
+  Abort on panel disposal; always release busy state. No automatic retries or fallback fixtures.
+- Keep prior canvas/selection on malformed, truncated, refused, cancelled or failed responses.
+- Errors must be actionable without vendor bodies, keys, authorization headers or sensitive source.
+- Tests with mocked fetch/VS Code do not prove real SecretStorage, editor CSP or vendor availability.

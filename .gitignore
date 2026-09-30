@@ -1,0 +1,22 @@
+# Dependencies and build output
+node_modules/
+dist/
+*.vsix
+*.tsbuildinfo
+
+# Local configuration
+.env
+.env.*
+*.local
+
+# Operating system and editor temporary files
+.DS_Store
+*.swp
+*.swo
+
+# Logs and test artifacts
+*.log
+coverage/
+test-results/
+playwright-report/
+playwright/.cache/

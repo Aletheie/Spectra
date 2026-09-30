@@ -1,0 +1,121 @@
+{
+  "name": "spectra",
+  "displayName": "Spectra",
+  "version": "0.2.1",
+  "private": true,
+  "description": "Explore three UI directions for your component, side by side in Cursor.",
+  "categories": [
+    "Other"
+  ],
+  "publisher": "spectra-local",
+  "type": "module",
+  "main": "./dist/extension.cjs",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build && npm run build:extension",
+    "build:extension": "esbuild extension/extension.ts --bundle --platform=node --format=cjs --external:vscode --target=node20 --outfile=dist/extension.cjs",
+    "watch": "concurrently -k \"vite build --watch\" \"npm run build:extension -- --watch\"",
+    "package": "npm run build && vsce package --no-dependencies --allow-missing-repository --no-rewrite-relative-links --skip-license",
+    "lint": "oxlint --deny-warnings src extension scripts vite.config.ts && node --import tsx scripts/check-code-conventions.ts",
+    "lint:fix": "oxlint --deny-warnings --fix src extension scripts vite.config.ts && node --import tsx scripts/check-code-conventions.ts",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "test": "node --import tsx --test src/**/*.test.ts extension/*.test.ts",
+    "check": "npm run lint && npm run format:check && npm test && npm run build",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/vscode": "1.96.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@vscode/vsce": "^3.2.2",
+    "concurrently": "^9.1.2",
+    "esbuild": "^0.25.0",
+    "oxfmt": "^0.71.0",
+    "oxlint": "^1.86.0",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.5"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "spectra.open",
+        "title": "Spectra: Open Comparison Canvas"
+      },
+      {
+        "command": "spectra.exploreSelection",
+        "title": "Spectra: Explore Component"
+      },
+      {
+        "command": "spectra.configureProvider",
+        "title": "Spectra: Configure AI Provider"
+      },
+      {
+        "command": "spectra.loadSample",
+        "title": "Spectra: Open Curated Sample"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "spectra.exploreSelection",
+          "group": "navigation@20",
+          "when": "isWorkspaceTrusted && resourceScheme == file && editorLangId =~ /^(typescriptreact|javascriptreact|typescript|javascript|html|css|scss|vue|svelte)$/"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Spectra",
+      "properties": {
+        "spectra.openaiModel": {
+          "type": "string",
+          "default": "gpt-4.1",
+          "scope": "application",
+          "description": "OpenAI chat-completions model supporting JSON object output. API keys are stored separately in SecretStorage."
+        },
+        "spectra.anthropicModel": {
+          "type": "string",
+          "default": "claude-sonnet-4-20250514",
+          "scope": "application",
+          "description": "Anthropic Messages model available to your API account. Change this when using a different supported model."
+        },
+        "spectra.cursorModel": {
+          "type": "string",
+          "default": "auto",
+          "scope": "application",
+          "description": "Cursor CLI model ID, or auto. Uses your Cursor CLI account, not the editor chat model. Use AI providers → Cursor account → List models for account model IDs."
+        },
+        "spectra.cursorCliPath": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "description": "Absolute path to the official Cursor CLI executable, without arguments. Empty uses ~/.local/bin/agent or ~/.local/bin/cursor-agent. Supported in macOS, Linux and WSL extension hosts."
+        }
+      }
+    }
+  },
+  "activationEvents": [],
+  "extensionKind": [
+    "workspace"
+  ],
+  "icon": "media/spectra-extension.png",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Only curated samples are available. Importing source and using AI require workspace trust."
+    },
+    "virtualWorkspaces": false
+  }
+}

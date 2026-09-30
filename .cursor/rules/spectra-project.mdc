@@ -1,0 +1,27 @@
+---
+description: Spectra Cursor extension architecture, scope, and verification honesty
+alwaysApply: true
+---
+
+# Spectra project
+- Read root `AGENTS.md` and supporting `docs/PRODUCT.md`, `docs/LLM_CONTRACT.md`,
+  `docs/DEMO_CHECKLIST.md` before implementation; inspect relevant source before editing.
+- Spectra is a Cursor extension using standard VS Code APIs and a React webview.
+  Earlier product names and the former standalone website architecture are obsolete.
+- Do not restore Express, a localhost API, `.env` credentials, fake accounts/teams,
+  or the Orbit pricing sample as the default source. `npm run dev` is a sample-only harness.
+- Core flow: capture developer component → intent → three directions → compare →
+  refine/remix → choose → Copy for Cursor or Save HTML. Comparison is the product, not chat.
+- Custom-source Original is an AI reconstruction, never the executed app. Do not compile
+  generated React/JSX or automatically collect dependencies or workspace files.
+- Host owns source, variants, trust, native consent, SecretStorage, vendor calls and exports.
+  Webview sends allowlisted commands/IDs, never arbitrary paths or implementations.
+- Copy for Cursor is a manual clipboard handoff, not chat integration or automatic edits.
+- Preserve user edits and useful existing behavior; keep changes focused and functions typed.
+- Curated samples/presets must be explicitly labeled; no silent fallback from failed live AI.
+- No auth, database, billing, real teams, GitHub/Figma/MCP, analytics or runtime React compilation.
+- Use npm: build, watch, package, lint, test, format:check and check scripts exist.
+- Keep `.vscode` F5/tasks and local VSIX packaging working. Do not publish without authorization.
+- Distinguish unit/mocked-host checks, browser harness, F5/native runtime and live provider tests.
+  Never report a check passed without running it; build does not verify installation or AI.
+- Update contracts with behavior. Documentation-only requests do not authorize source fixes.

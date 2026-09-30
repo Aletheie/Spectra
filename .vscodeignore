@@ -1,0 +1,12 @@
+**/*
+!package.json
+!README.md
+!AGENTS.md
+!AGENT.MD
+!docs/*.md
+!dist/extension.cjs
+!dist/webview/index.js
+!dist/webview/index.css
+!media/spectra-extension.png
+!media/spectra-light.svg
+!media/spectra-dark.svg

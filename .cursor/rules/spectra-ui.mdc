@@ -1,0 +1,32 @@
+---
+description: Editor-native comparison workspace, reconstruction honesty, and preview isolation
+globs: "src/**/*.tsx,src/**/*.ts,src/**/*.css,extension/webview.ts"
+alwaysApply: false
+---
+
+# Spectra webview and previews
+- Build the Cursor WebviewPanel, not a marketing website or fake signed-in dashboard.
+  Use native `--vscode-*` theme tokens and accessible, readable narrow-panel layouts.
+- Empty state starts with source capture; Orbit is an explicit curated sample only.
+  Browser `npm run dev` is labeled Browser harness with no native source/AI capabilities.
+- Label all custom-source originals AI reconstructions, not running components or screenshots.
+  Show snapshot context and missing dependencies; never compile or run arbitrary React/JSX.
+- Preserve ORIGINAL | A | B | C and independent interactive previews. Each variant shows
+  name, causal hypothesis, concrete changes, Choose and Refine; remix uses two exact sources.
+- UI selects IDs via the validated host protocol; source and variants are authoritative in host.
+  No credentials, provider requests, arbitrary editor commands or file paths in the webview.
+- Choose shows Original ↔ Selected. Copy for Cursor is a manual clipboard brief; Save HTML uses
+  a native dialog. Neither is automatic Apply or chat/agent launch; export exact selected code.
+- Use `documentFor` with the parent script nonce. Generated code runs only in `srcdoc` with
+  `sandbox="allow-scripts"`, never same-origin, forms, popups or top-navigation permissions.
+- Preserve parent and preview restrictive CSP, blocked network and local webview assets.
+  Do not evaluate generated JS in React or host. Isolation/validation is not an absolute guarantee.
+- Preserve the standalone export warning: files omit preview CSP and lose iframe isolation.
+- Preserve original, previous versions, selection and recoverable instruction on failures.
+  Status messages must not rebuild unchanged iframe documents or reset their controls.
+- Curated sample transformations are presets, not live instruction following. No silent fallback.
+  Preserve pricing and billing units; label fictional proof visibly in previews and exports.
+- Support keyboard actions, visible focus, accessible labels, dialog trapping/restoration,
+  announced errors, reduced motion and light/dark/high-contrast themes.
+- Run build/diagnostics and relevant flow checks after changes. Harness checks do not verify
+  native host commands, SecretStorage, inherited editor CSP or live provider calls.
