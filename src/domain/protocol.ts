@@ -61,6 +61,8 @@ export type EditorCommand =
     }
   | { command: 'copyHandoff'; variantId: string }
   | { command: 'exportHtml'; variantId: string }
+  | { command: 'replaceComponent'; variantId: string }
+  | { command: 'copyReact'; variantId: string }
 
 export type EditorRequest = EditorCommand & { type: 'request'; id: string }
 export type Activity = { command: EditorCommand['command']; phase: 'confirming' | 'running' }

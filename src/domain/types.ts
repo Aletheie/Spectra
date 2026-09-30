@@ -1,4 +1,5 @@
 import type { DesignConstraints } from './constraints'
+import type { ReactImplementation } from './react'
 
 export type Variant = {
   id: string
@@ -8,6 +9,8 @@ export type Variant = {
   html: string
   css: string
   js: string
+  /** Exact project code. HTML/CSS/JS are a separate, approximate preview. */
+  react?: ReactImplementation
   /** Host-owned constraints used for this revision, not unsubmitted UI drafts. */
   constraints?: DesignConstraints
   /** Host-owned provenance, never accepted from a provider. */

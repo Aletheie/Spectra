@@ -14,6 +14,7 @@ import {
 import type { Variant } from './types'
 import { isRecord } from './guards'
 import { validConstraints } from './constraints'
+import { validReactImplementation } from './react'
 
 const text = (value: unknown, limit: number): value is string =>
   typeof value === 'string' && value.trim().length > 0 && value.length < limit
@@ -85,6 +86,7 @@ export const validVariant = (variant: unknown): variant is Omit<Variant, 'id'> =
     text(variant.css, 100000) &&
     typeof variant.js === 'string' &&
     variant.js.length < 50000 &&
+    (variant.react === undefined || validReactImplementation(variant.react)) &&
     validMetadata(variant) &&
     (variant.constraints === undefined || validConstraints(variant.constraints)) &&
     canEmbedScript(variant.js) &&
@@ -114,6 +116,8 @@ export const validEditorCommand = (value: unknown): value is EditorCommand => {
       )
     case 'copyHandoff':
     case 'exportHtml':
+    case 'replaceComponent':
+    case 'copyReact':
       return onlyKeys(value, ['command', 'variantId']) && id(value.variantId)
     case 'generate':
     case 'refine':
@@ -204,6 +208,8 @@ export const validEditorStatus = (status: unknown): status is EditorStatus => {
         'remix',
         'copyHandoff',
         'exportHtml',
+        'replaceComponent',
+        'copyReact',
       ].includes(String(activity.command)) &&
       (activity.phase === 'confirming' || activity.phase === 'running'))
   )
