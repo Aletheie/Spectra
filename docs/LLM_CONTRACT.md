@@ -112,6 +112,15 @@ comparison session. No comparison results are persisted automatically.
   macOS, Linux and WSL extension hosts are supported; native Windows uses direct API providers.
 - Native setup offers sign-in, connection check, model listing, sign-out, and installation instructions.
   Login runs the CLI's `login` command in a terminal. Spectra never reads, copies, or exposes auth tokens.
+- Model listing runs `--list-models` without a terminal, prompt or source in a temporary workspace,
+  using the same environment/profile isolation and process-group cleanup as other bounded calls.
+  It has a 20-second timeout and native cancellation. Parse the CLI's `Available models` text output:
+  strip terminal escapes, require unique validated IDs and nonblank labels, limit to 512 models,
+  200-character IDs, 160-character labels and 100,000 output characters (in addition to the process
+  byte limit). Only validated rows enter a native QuickPick; raw stdout/stderr never enter the webview.
+  Explicit selection writes only `spectra.cursorModel` at the global/user setting scope. A cancelled
+  picker, failed listing or closed panel leaves the model and canvas intact. No model fallback or
+  generation request is started; listing does not claim model access or quota for generation.
 - `CURSOR_CONFIG_DIR` and `CURSOR_DATA_DIR` point to the Spectra-owned `cursor-cli` directory under
   extension global storage. Restrictive CLI configuration, empty MCP and hook configuration are
   written there; the normal Cursor configuration is not modified. Cursor owns authentication storage,

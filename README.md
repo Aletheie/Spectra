@@ -50,8 +50,10 @@ This uses the CLI's Cursor account. You don't need an OpenAI or Anthropic key, b
 account's usage limits and billing apply. If login hasn't been detected yet, Spectra checks on
 opening the panel, when you return to Cursor, and for up to three minutes after starting login. Model access and quota are checked when you generate.
 
-The model defaults to `auto`. Use **List models** during setup and set `spectra.cursorModel` to
-choose another. The model and conversation from Cursor's editor chat are separate.
+The model defaults to `auto`. Use **AI providers → Cursor account → Connect / check → List models**
+to load a searchable picker and select a specific model. Spectra saves the selection in user settings
+as `spectra.cursorModel`; it applies to the next generate, refine or remix request. You can also edit
+that setting manually. The model and conversation from Cursor's editor chat are separate.
 
 Spectra looks for `~/.local/bin/agent` or `~/.local/bin/cursor-agent`. For another location, set
 `spectra.cursorCliPath` to the executable's absolute path, without arguments. Remote workspaces

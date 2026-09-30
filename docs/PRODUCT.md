@@ -78,6 +78,11 @@ closure. A slow older status refresh cannot overwrite newer readiness. Configuri
 provider in the panel selects that provider. Failure to read a direct API key must not block Cursor. Editor chat history and its model selection
 are separate from the CLI.
 
+**List models** loads the CLI account's model list in a cancellable background process, then opens
+a native searchable model picker. Selecting a model updates the user-level `spectra.cursorModel`
+setting for future generate/refine/remix requests. Listing sends no component source and opens no
+terminal. Cancellation or a failed listing keeps the current model and comparison unchanged.
+
 Cursor CLI supports macOS, Linux, and WSL extension hosts. `spectra.cursorModel` selects a CLI model;
 `spectra.cursorCliPath` optionally supplies an absolute executable path without arguments. Run each
 request in a temporary workspace, pipe the generation context through stdin, and deny file reads,

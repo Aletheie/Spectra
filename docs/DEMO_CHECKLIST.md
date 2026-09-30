@@ -74,7 +74,10 @@ An unchecked item means it still needs testing.
       selection/history is not inherited. Record actual model IDs and CLI version.
 - [ ] Consent names Cursor and includes snapshot/range, model, usage/billing and CLI history persistence.
       Declining starts no generation. Spectra's CLI configuration does not alter normal Cursor configuration.
-- [ ] List models shows CLI account model IDs; Sign out of Cursor CLI explains the shared login impact.
+- [ ] List models opens a searchable native picker without a terminal. Selecting an entry updates
+      user-level `spectra.cursorModel` and the next request's model. Cancelled/failed listings and
+      closing the panel keep the previous setting/canvas and release controls. No source is sent.
+- [ ] Sign out of Cursor CLI explains the shared login impact.
 - [ ] Rehearse successful first generation, regenerate, exact-source refine, ordered two-source remix,
       choose and manual handoff. Original remains fixed; previous revisions stay available.
 - [ ] Verify CLI file read/write, shell, web fetch and MCP denials in actual CLI execution. Use an
