@@ -1,6 +1,7 @@
 import { ArrowUpRight, Code2, FileCode2, FlaskConical } from 'lucide-react'
 import { useWorkspace } from '../state/WorkspaceProvider'
 import { SpectraMark } from './SpectraMark'
+import { reactLanguageFor } from '../domain/react'
 
 export const SourcePanel = () => {
   const { source, baselineKind, perform, loading, isEditor, trusted, variants } = useWorkspace()
@@ -51,8 +52,8 @@ export const SourcePanel = () => {
             <span>Inspect previews, refine a direction or remix two.</span>
           </li>
           <li>
-            <strong>Choose and export</strong>
-            <span>Copy a handoff for Cursor or save standalone HTML.</span>
+            <strong>Choose and use</strong>
+            <span>Replace a React component, copy for Cursor or save HTML.</span>
           </li>
         </ol>
         <p className="privacy-note">
@@ -88,6 +89,13 @@ export const SourcePanel = () => {
           ? 'Captured source snapshot · Imported styles and dependencies are not included. AI previews are reconstructions, not your running app.'
           : 'Sample component · Demo mode uses three curated directions and preset transformations. It does not follow arbitrary instructions.'}
       </p>
+      {reactLanguageFor(source) && (
+        <p className="help-text">
+          React + Tailwind output · Generate includes project code and an approximate HTML preview.
+          Replacement targets only this captured {source?.selection ? 'selection' : 'file'} and
+          opens an editor diff first.
+        </p>
+      )}
       {source && (
         <details className="source-details">
           <summary>

@@ -1,5 +1,6 @@
 import { Copy, Download, Code2, SlidersHorizontal } from 'lucide-react'
 import { useWorkspace } from '../state/WorkspaceProvider'
+import { ReactActions } from './ReactActions'
 
 export const ChosenDirection = () => {
   const {
@@ -44,20 +45,23 @@ export const ChosenDirection = () => {
           Save HTML
         </button>
         <button
-          className="primary"
+          className={selected.react ? undefined : 'primary'}
           disabled={loading || !isEditor || !trusted}
           onClick={() => void perform({ command: 'copyHandoff', variantId: selected.id })}
         >
           <Copy size={14} />
           Copy for Cursor
         </button>
+        <ReactActions variant={selected} />
       </div>
       <p className="help-text">
         {!isEditor
           ? 'Browser harness: sample download only. Copy for Cursor requires the extension.'
           : !trusted
             ? 'Trust this workspace to copy or save.'
-            : 'Copy a brief, then paste it into Cursor. Review the resulting diff.'}{' '}
+            : selected.react
+              ? 'React + Tailwind · Replace opens a diff and asks before editing the captured range. Unsaved changes are protected; the edit supports Undo. Tailwind must already be configured in your project. The HTML preview approximates the React code.'
+              : 'Copy a brief, then paste it into Cursor. Review the resulting diff.'}{' '}
         Exported HTML runs outside the preview sandbox; review it before opening.
       </p>
       {errors.export && (

@@ -417,3 +417,48 @@ test('large session profile: typing and status deltas retain loaded previews', a
     `Large-session diagnostic: ${elapsed}ms for 48 typed characters; full state ${payloadSizes.full} chars vs status ${payloadSizes.delta} chars. Not a cross-machine benchmark.`,
   )
 })
+
+test('React inspection, copy and replacement use the selected revision ID and keep the canvas on conflicts', async ({
+  page,
+}) => {
+  const variants = withLineage(
+    demoVariants.map((variant, index) => ({
+      ...variant,
+      react: {
+        language: 'tsx' as const,
+        code: `export const Card = () => <button className="p-${index + 2}">Save ${index + 1}</button>`,
+      },
+    })),
+    [],
+    'generate',
+  )
+  await mockHost(page, { variants })
+  const card = page.locator('.variant-card').nth(2)
+  await card.getByRole('button', { name: 'Choose', exact: true }).click()
+  await page.getByRole('button', { name: 'Inspect code', exact: true }).first().click()
+  await expect(page.locator('dialog .code-preview')).toHaveText(variants[1].react.code)
+  await expect(page.getByRole('button', { name: 'React / TSX' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await page.locator('dialog').getByRole('button', { name: 'Copy React', exact: true }).click()
+  await expect
+    .poll(() => page.evaluate(() => (window as TestWindow).__spectraTest.pending))
+    .toMatchObject({ command: 'copyReact', variantId: variants[1].id })
+  await page.evaluate(() => (window as TestWindow).__spectraTest.finish())
+  await page.getByRole('button', { name: 'Close export' }).click()
+  await page.getByRole('button', { name: 'Replace component…', exact: true }).click()
+  await expect
+    .poll(() => page.evaluate(() => (window as TestWindow).__spectraTest.pending))
+    .toMatchObject({ command: 'replaceComponent', variantId: variants[1].id })
+  await expect(page.locator('.activity-row')).toContainText('Review the React diff')
+  await page.evaluate(() =>
+    (window as TestWindow).__spectraTest.finish({
+      error: 'The source changed since capture. Capture it again to preserve your edits.',
+    }),
+  )
+  await expect(page.locator('.chosen-toolbar [role=alert]')).toContainText('source changed')
+  await expect(page.locator('.handoff-context strong')).toHaveText(variants[1].name)
+  await expect(page.getByRole('button', { name: 'Replace component…', exact: true })).toBeEnabled()
+  await expect(page.locator('.variant-card')).toHaveCount(4)
+})
