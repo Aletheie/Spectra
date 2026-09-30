@@ -9,7 +9,7 @@ import { exportDocument } from '../src/domain/document'
 import type { EditorCommand, HostMessage } from '../src/domain/protocol'
 import { validHostMessage } from '../src/domain/validation'
 import { demoVariants, original } from '../src/variants'
-import type { GenerationInput } from './providers'
+import type { GenerationInput, GenerationResult } from './providers'
 import { emptyConstraints } from '../src/domain/constraints'
 const bundle = buildSync({
   entryPoints: [fileURLToPath(new URL('./extension.ts', import.meta.url))],
@@ -48,6 +48,8 @@ const setup = () => {
   let focusListener: (event: { focused: boolean }) => void = () => undefined
   let trustListener: () => void = () => undefined
   const cursorCalls: GenerationInput[] = []
+  const cursorGenerationSignals: AbortSignal[] = []
+  let deferredCursorGeneration: Promise<GenerationResult> | undefined
   const consentDetails: string[] = []
   const progressMessages: string[] = []
   let cursorAction = 'Check connection'
@@ -269,9 +271,12 @@ const setup = () => {
             _connection: unknown,
             _model: string,
             input: GenerationInput,
+            signal: AbortSignal,
           ) => {
             cursorCalls.push(input)
+            cursorGenerationSignals.push(signal)
             if (cursorFailure) throw new Error('Cursor test failure')
+            if (deferredCursorGeneration) return deferredCursorGeneration
             return {
               ...(input.original ? {} : { original }),
               variants: demoVariants
@@ -336,6 +341,10 @@ const setup = () => {
     clipboard: () => clipboard,
     saved: () => saved,
     cursorCalls,
+    cursorGenerationSignals,
+    deferCursorGeneration: (pending: Promise<GenerationResult>) => {
+      deferredCursorGeneration = pending
+    },
     consentDetails,
     progressMessages,
     activeIntervals: () => scheduledPolls.size,
@@ -527,6 +536,8 @@ test('Cursor host flow requires setup and consent, then preserves baseline and e
   assert.equal(host.cursorCalls.length, 0)
   host.allowSend()
   assert.equal((await host.request(generate)).ok, true)
+  assert.match(host.progressMessages.at(-1)!, /elapsed.*up to 10 min/)
+  assert.equal(host.activeIntervals(), 0, 'success stops the elapsed-time updates')
   const baseline = host.latestState().original
   const variants = host.latestState().variants
   assert.deepEqual({ ...host.cursorCalls[0].constraints }, generate.constraints)
@@ -568,6 +579,7 @@ test('Cursor host flow requires setup and consent, then preserves baseline and e
   const previous = host.latestState()
   host.failCursor()
   assert.equal((await host.request(generate)).ok, false)
+  assert.equal(host.activeIntervals(), 0, 'failure stops the elapsed-time updates')
   assert.deepEqual(host.latestState().variants, previous.variants)
   assert.deepEqual(host.latestState().original, baseline)
   assert.equal(host.latestState().busy, false)
@@ -575,6 +587,48 @@ test('Cursor host flow requires setup and consent, then preserves baseline and e
   assert.equal((await host.request(generate)).ok, false)
   assert.equal((await host.request({ command: 'configureProvider', provider: 'cursor' })).ok, false)
   assert.equal(host.cursorCalls.length, 4)
+})
+
+test('Cancelling slow Cursor generation aborts it, keeps the canvas and stops progress updates', async () => {
+  const host = setup()
+  host.setCursorSignedIn(true)
+  await host.commands.get('spectra.loadSample')!()
+  await flushHost()
+  host.allowSend()
+  const before = host.latestState()
+  let finish: (result: GenerationResult) => void = () => undefined
+  host.deferCursorGeneration(
+    new Promise((resolve) => {
+      finish = resolve
+    }),
+  )
+  host.send({
+    type: 'request',
+    id: 'slow-generation',
+    command: 'generate',
+    provider: 'cursor',
+    prompt: 'Improve hierarchy',
+  })
+  await flushHost()
+  assert.equal(host.latestState().busy, true)
+  assert.equal(host.activeIntervals(), 1)
+  assert.match(host.progressMessages.at(-1)!, /elapsed.*up to 10 min/)
+  host.pollLogin()
+  assert.equal(host.progressMessages.length, 2)
+  assert.equal((await host.request({ command: 'cancelGeneration' })).ok, true)
+  assert.equal(host.cursorGenerationSignals[0].aborted, true)
+  finish({ variants: demoVariants })
+  await flushHost()
+  assert.equal(host.latestState().busy, false)
+  assert.equal(host.activeIntervals(), 0)
+  assert.deepEqual(host.latestState().original, before.original)
+  assert.deepEqual(host.latestState().variants, before.variants)
+  assert.ok(
+    host.messages.some(
+      (message) =>
+        message.type === 'response' && message.id === 'slow-generation' && message.cancelled,
+    ),
+  )
 })
 
 test('extension entry activates all manifest commands and serves a local nonce-protected panel', async () => {
