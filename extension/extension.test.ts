@@ -49,6 +49,7 @@ const setup = () => {
   let trustListener: () => void = () => undefined
   const cursorCalls: GenerationInput[] = []
   const consentDetails: string[] = []
+  const progressMessages: string[] = []
   let cursorAction = 'Check connection'
   let selectedCursorModel: string | undefined = 'model-a'
   let cursorModelsFailure = false
@@ -159,7 +160,11 @@ const setup = () => {
       withProgress: async (
         _options: unknown,
         action: (progress: unknown, token: unknown) => Promise<unknown>,
-      ) => action({}, { isCancellationRequested: false, onCancellationRequested: disposable }),
+      ) =>
+        action(
+          { report: ({ message }: { message: string }) => progressMessages.push(message) },
+          { isCancellationRequested: false, onCancellationRequested: disposable },
+        ),
       showSaveDialog: async () => uri('/exports/selected.html'),
     },
     workspace: {
@@ -332,6 +337,8 @@ const setup = () => {
     saved: () => saved,
     cursorCalls,
     consentDetails,
+    progressMessages,
+    activeIntervals: () => scheduledPolls.size,
     failCursor: () => {
       cursorFailure = true
     },

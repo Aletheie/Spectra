@@ -18,6 +18,7 @@ import {
   type ProviderInfo,
 } from '../src/domain/protocol'
 import { suggestedComponentPrompt } from '../src/domain/component'
+import { CURSOR_GENERATION_TIMEOUT_MS } from '../src/domain/timeouts'
 import { parseGeneratedVariants, validEditorRequest } from '../src/domain/validation'
 import { original as sampleOriginal } from '../src/variants'
 import { generateWithProvider, type GenerationResult } from './providers'
@@ -609,10 +610,20 @@ const createPanel = (
             title: `Spectra · ${labels[provider]} is generating`,
             cancellable: true,
           },
-          async (_progress, token) => {
+          async (progress, token) => {
             const cancel = token.onCancellationRequested(() => abort.abort())
             if (token.isCancellationRequested) abort.abort()
+            const started = Date.now()
+            const reportWaiting = () => {
+              const seconds = Math.floor((Date.now() - started) / 1000)
+              progress.report({
+                message: `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')} elapsed · Waiting for Cursor's complete response (up to ${CURSOR_GENERATION_TIMEOUT_MS / 60000} min).`,
+              })
+            }
+            const progressTimer = connection ? setInterval(reportWaiting, 1000) : undefined
+            progressTimer?.unref()
             try {
+              if (connection) reportWaiting()
               const input = {
                 action: command.command,
                 prompt: command.prompt,
@@ -626,6 +637,7 @@ const createPanel = (
                 ? await generateWithCursor(connection, model, input, abort.signal)
                 : await generateWithProvider(provider, model, key ?? '', input, abort.signal)
             } finally {
+              clearInterval(progressTimer)
               cancel.dispose()
             }
           },
