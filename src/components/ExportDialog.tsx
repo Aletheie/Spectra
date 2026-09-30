@@ -1,6 +1,7 @@
 import { Copy, Download, X } from 'lucide-react'
 import { useWorkspace } from '../state/WorkspaceProvider'
 import { Dialog } from './Dialog'
+import { ReactActions } from './ReactActions'
 
 export const ExportDialog = () => {
   const {
@@ -16,6 +17,10 @@ export const ExportDialog = () => {
     toast,
   } = useWorkspace()
   if (!exportOpen || !selected) return null
+  const tab = exportTab === 'react' && !selected.react ? 'html' : exportTab
+  const tabs = selected.react
+    ? (['react', 'html', 'css', 'js'] as const)
+    : (['html', 'css', 'js'] as const)
   return (
     <Dialog onClose={() => setExportOpen(false)}>
       <section className="modal export-modal" aria-labelledby="export-title">
@@ -30,23 +35,29 @@ export const ExportDialog = () => {
           </button>
         </div>
         <p>
-          Inspect the chosen implementation. Copy its context for Cursor or save a standalone HTML
-          file.
+          {selected.react
+            ? 'React + Tailwind is the project code. HTML/CSS/JS form a separate visual approximation for comparison.'
+            : 'Inspect the chosen implementation. Copy its context for Cursor or save a standalone HTML file.'}
         </p>
         <div className="code-tabs" aria-label="Implementation language">
-          {(['html', 'css', 'js'] as const).map((tab) => (
+          {tabs.map((item) => (
             <button
-              key={tab}
-              className={exportTab === tab ? 'active' : ''}
-              aria-pressed={exportTab === tab}
-              onClick={() => setExportTab(tab)}
+              key={item}
+              className={tab === item ? 'active' : ''}
+              aria-pressed={tab === item}
+              onClick={() => setExportTab(item)}
             >
-              {tab.toUpperCase()}
+              {item === 'react'
+                ? `React / ${selected.react?.language.toUpperCase()}`
+                : item.toUpperCase()}
             </button>
           ))}
         </div>
         <pre className="code-preview">
-          <code>{selected[exportTab] || '// No JavaScript for this direction.'}</code>
+          <code>
+            {(tab === 'react' ? selected.react?.code : selected[tab]) ||
+              '// No JavaScript for this direction.'}
+          </code>
         </pre>
         {errors.export && (
           <p className="modal-error" role="alert">
@@ -63,13 +74,14 @@ export const ExportDialog = () => {
             Save HTML
           </button>
           <button
-            className="primary"
+            className={selected.react ? undefined : 'primary'}
             disabled={loading || !isEditor || selected.id === 'original'}
             onClick={() => void perform({ command: 'copyHandoff', variantId: selected.id })}
           >
             <Copy size={14} />
             Copy for Cursor
           </button>
+          <ReactActions variant={selected} />
         </div>
         <p className="export-disclaimer">
           Exported HTML runs outside the preview sandbox and omits its CSP. Review generated code

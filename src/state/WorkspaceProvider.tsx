@@ -30,7 +30,10 @@ const scopeFor = (command: EditorCommand['command']): ErrorScope =>
     ? command
     : command === 'configureProvider'
       ? 'settings'
-      : command === 'copyHandoff' || command === 'exportHtml'
+      : command === 'copyHandoff' ||
+          command === 'exportHtml' ||
+          command === 'replaceComponent' ||
+          command === 'copyReact'
         ? 'export'
         : 'workspace'
 const useWorkspaceController = () => {
@@ -54,7 +57,7 @@ const useWorkspaceController = () => {
   const [inspectionId, setInspectionId] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [replaceOpen, setReplaceOpen] = useState(false)
-  const [exportTab, setExportTab] = useState<'html' | 'css' | 'js'>('html')
+  const [exportTab, setExportTab] = useState<'react' | 'html' | 'css' | 'js'>('html')
   const [previewSettings, setPreviewSettings] = useState<PreviewSettings>(defaultPreviewSettings)
   const [showOriginal, setShowOriginal] = useState(false)
   const [errors, setErrors] = useState<Partial<Record<ErrorScope, string>>>({})
@@ -179,6 +182,8 @@ const useWorkspaceController = () => {
             (before.html === variant.html &&
               before.css === variant.css &&
               before.js === variant.js &&
+              before.react?.code === variant.react?.code &&
+              before.react?.language === variant.react?.language &&
               before.name === variant.name &&
               before.hypothesis === variant.hypothesis &&
               before.changes.join('\n') === variant.changes.join('\n') &&
@@ -394,7 +399,10 @@ const useWorkspaceController = () => {
     expanded,
     setExpanded: (variant: Variant | null) => setExpandedId(variant?.id ?? null),
     inspected,
-    inspect: (variant: Variant) => setInspectionId(variant.id),
+    inspect: (variant: Variant) => {
+      setExportTab(variant.react ? 'react' : 'html')
+      setInspectionId(variant.id)
+    },
     exportOpen: Boolean(inspected),
     setExportOpen: (open: boolean) => setInspectionId(open ? (selected?.id ?? null) : null),
     exportTab,
