@@ -298,6 +298,39 @@ test('Cursor generation survives the old CLI and panel deadlines and returns a c
     await assert.rejects(access(cwd))
   }))
 
+test('Cursor still terminates at its full deadline, cleans up and does not recommend shrinking valid source', async (t) =>
+  profile(async (configDir) => {
+    const script = join(configDir, 'stalled-generation.cjs')
+    await writeFile(script, 'process.stdin.resume(); setInterval(() => {}, 1000)')
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    let cwd = ''
+    let calls = 0
+    await assert.rejects(
+      generateWithCursor(
+        { executable: process.execPath, configDir },
+        'auto',
+        input,
+        signal(),
+        async (connection, run) => {
+          calls++
+          cwd = run.cwd
+          const pending = runCursor(connection, { ...run, args: [script] })
+          t.mock.timers.tick(CURSOR_GENERATION_TIMEOUT_MS + 500)
+          return pending
+        },
+      ),
+      (error: unknown) => {
+        assert.ok(error instanceof Error)
+        assert.match(error.message, /timed out after 10 minutes/)
+        assert.match(error.message, /canvas is unchanged/)
+        assert.doesNotMatch(error.message, /smaller component/)
+        return true
+      },
+    )
+    assert.equal(calls, 1)
+    await assert.rejects(access(cwd))
+  }))
+
 test('Cursor parameterized model IDs stay a single argument; malformed overrides never launch', async () =>
   profile(async (configDir) => {
     const model = 'claude-opus-4-8[context=1m,effort=high,fast=false]'
