@@ -15,6 +15,7 @@ import {
   type EditorState,
   type HostMessage,
   type LiveProvider,
+  type ProviderInfo,
 } from '../src/domain/protocol'
 import { suggestedComponentPrompt } from '../src/domain/component'
 import { parseGeneratedVariants, validEditorRequest } from '../src/domain/validation'
@@ -85,6 +86,14 @@ const createPanel = (
   let disposed = false
   let controller: AbortController | undefined
   let cursorReady = false
+  let cursorConnectionState: ProviderInfo['connection'] = 'signed-out'
+  let cursorDetail = 'Check Cursor CLI login or sign in.'
+  let loginPoll: ReturnType<typeof setInterval> | undefined
+  const loginTerminals = new Set<vscode.Terminal>()
+  let providerRefresh = 0
+  let cursorStatusController: AbortController | undefined
+  let cursorAutoCheck = true
+  let cursorCheckAfterBusy = false
   const cursorConnection = async () => ({
     executable: await resolveCursorExecutable(
       vscode.workspace.getConfiguration('spectra').get<string>('cursorCliPath', ''),
@@ -119,16 +128,34 @@ const createPanel = (
     publish()
   }
   const refreshProviders = async () => {
-    const info = await Promise.all(
-      providers.map(async (id) => ({
-        id,
-        label: labels[id],
-        model: modelFor(id),
-        configured:
-          id === 'cursor' ? cursorReady : Boolean(await context.secrets.get(secretName(id))),
-      })),
+    const refresh = ++providerRefresh
+    const keys = await Promise.all(
+      (['openai', 'anthropic'] as const).map(async (id) => {
+        try {
+          return { id, configured: Boolean(await context.secrets.get(secretName(id))) }
+        } catch {
+          return {
+            id,
+            configured: false,
+            detail:
+              'Could not read the saved key. Unlock your system keychain and check this provider again.',
+          }
+        }
+      }),
     )
-    if (disposed) return
+    if (disposed || refresh !== providerRefresh) return
+    // Read current Cursor readiness after asynchronous key reads, never a stale snapshot.
+    const info: ProviderInfo[] = [
+      {
+        id: 'cursor',
+        label: labels.cursor,
+        model: modelFor('cursor'),
+        configured: cursorReady,
+        connection: cursorConnectionState,
+        detail: cursorDetail,
+      },
+      ...keys.map((key) => ({ ...key, label: labels[key.id], model: modelFor(key.id) })),
+    ]
     state = { ...state, providers: info, trusted: vscode.workspace.isTrusted }
     publish()
   }
@@ -139,6 +166,62 @@ const createPanel = (
           'Spectra could not read provider status from SecretStorage. Unlock your system keychain and try again.',
         )
     })
+  }
+  const resetCursorStatus = () => {
+    cursorStatusController?.abort()
+    cursorStatusController = undefined
+    cursorReady = false
+    cursorConnectionState = 'signed-out'
+    cursorDetail = 'Check Cursor CLI login or sign in.'
+    clearInterval(loginPoll)
+    loginPoll = undefined
+  }
+  const detectCursorLogin = async () => {
+    if (
+      disposed ||
+      !vscode.workspace.isTrusted ||
+      cursorReady ||
+      !cursorAutoCheck ||
+      cursorStatusController
+    )
+      return
+    if (state.busy) {
+      cursorCheckAfterBusy = true
+      return
+    }
+    cursorCheckAfterBusy = false
+    const abort = new AbortController()
+    cursorStatusController = abort
+    cursorConnectionState = 'checking'
+    cursorDetail = 'Checking Cursor CLI login…'
+    try {
+      await refreshProviders()
+      const connection = await cursorConnection()
+      if (disposed || abort.signal.aborted) return
+      const connected = await checkCursorConnection(connection, abort.signal)
+      if (disposed || abort.signal.aborted || !vscode.workspace.isTrusted) return
+      cursorReady = connected
+      cursorConnectionState = connected ? 'ready' : 'signed-out'
+      cursorDetail = connected
+        ? 'CLI login detected · Model access is checked when generating.'
+        : 'Cursor CLI is signed out. Sign in to enable generation.'
+      if (connected) {
+        clearInterval(loginPoll)
+        loginPoll = undefined
+      }
+      await refreshProviders()
+    } catch (error) {
+      if (!disposed && !abort.signal.aborted) {
+        cursorConnectionState = 'error'
+        cursorDetail =
+          error instanceof Error
+            ? error.message.slice(0, 1200)
+            : 'Could not check Cursor CLI. Try Check Cursor again.'
+        await refreshProviders()
+      }
+    } finally {
+      if (cursorStatusController === abort) cursorStatusController = undefined
+    }
   }
   const confirmReset = async () => {
     if (!state.source && !state.original) return
@@ -222,7 +305,7 @@ const createPanel = (
     return 'Source snapshot captured. Review it before sending to a provider; imports and dependencies are not collected.'
   }
 
-  const configure = async (specified?: LiveProvider) => {
+  const configure = async (specified?: LiveProvider, requestedAction?: 'check' | 'login') => {
     trust()
     const provider =
       specified ??
@@ -238,29 +321,50 @@ const createPanel = (
     ensureOpen()
     if (!provider) return 'Provider configuration cancelled.'
     if (provider === 'cursor') {
-      const action = await vscode.window.showQuickPick(
-        [
-          'Check connection',
-          'Sign in to Cursor',
-          'List models',
-          'Sign out of Cursor CLI',
-          'Installation instructions',
-        ],
-        {
-          title: 'Spectra · Cursor account',
-          placeHolder:
-            'Uses Cursor CLI login with separate Spectra configuration. Sign-out affects other CLI sessions.',
-        },
-      )
+      cursorStatusController?.abort()
+      cursorStatusController = undefined
+      cursorCheckAfterBusy = false
+      if (!cursorReady) {
+        cursorConnectionState = 'signed-out'
+        cursorDetail = 'Check Cursor CLI login or sign in.'
+        await refreshProviders()
+      }
+      const action =
+        requestedAction === 'check'
+          ? 'Check connection'
+          : requestedAction === 'login'
+            ? 'Sign in to Cursor'
+            : await vscode.window.showQuickPick(
+                [
+                  'Check connection',
+                  'Sign in to Cursor',
+                  'List models',
+                  'Sign out of Cursor CLI',
+                  'Installation instructions',
+                ],
+                {
+                  title: 'Spectra · Cursor account',
+                  placeHolder:
+                    'Uses Cursor CLI login with separate Spectra configuration. Sign-out affects other CLI sessions.',
+                },
+              )
       ensureOpen()
       trust()
-      if (!action) return 'Cursor setup cancelled.'
+      if (!action) {
+        if (cursorConnectionState === 'checking') {
+          cursorConnectionState = 'signed-out'
+          cursorDetail = 'Cursor setup cancelled. Use Check Cursor to retry.'
+          await refreshProviders()
+        }
+        return 'Cursor setup cancelled.'
+      }
       if (action === 'Installation instructions') {
         await vscode.env.openExternal(vscode.Uri.parse('https://cursor.com/docs/cli/installation'))
         return 'Install Cursor CLI, then use Check connection or Sign in to Cursor in AI providers.'
       }
       if (action !== 'List models') {
-        cursorReady = false
+        resetCursorStatus()
+        cursorAutoCheck = action !== 'Sign out of Cursor CLI'
         await refreshProviders()
       }
       const connection = await cursorConnection()
@@ -294,13 +398,29 @@ const createPanel = (
         terminal.show()
         if (action === 'List models')
           return 'Available Cursor models are shown in the terminal. Set a model ID in spectra.cursorModel.'
+        if (action === 'Sign in to Cursor') {
+          loginTerminals.add(terminal)
+          const deadline = Date.now() + 180000
+          loginPoll = setInterval(() => {
+            if (disposed || cursorReady || Date.now() >= deadline) {
+              clearInterval(loginPoll)
+              loginPoll = undefined
+              return
+            }
+            void detectCursorLogin()
+          }, 3000)
+          loginPoll.unref()
+        }
         if (action === 'Sign out of Cursor CLI')
           return 'Cursor CLI sign-out started in the terminal. This affects other CLI sessions and does not delete conversation history.'
-        return 'Complete Cursor sign-in in the terminal/browser, then choose Check connection in AI providers. No vendor API key is needed.'
+        return 'Complete Cursor sign-in in the browser, then return to Cursor. Spectra will check the login automatically. Check connection is also available in AI providers.'
       }
       const abort = new AbortController()
       controller = abort
       running()
+      cursorConnectionState = 'checking'
+      cursorDetail = 'Checking Cursor CLI login…'
+      await refreshProviders()
       try {
         const connected = await vscode.window.withProgress(
           {
@@ -322,6 +442,10 @@ const createPanel = (
         trust()
         if (abort.signal.aborted) throw new OperationCancelled('Cursor connection check cancelled.')
         cursorReady = connected
+        cursorConnectionState = connected ? 'ready' : 'signed-out'
+        cursorDetail = connected
+          ? 'CLI login detected · Model access is checked when generating.'
+          : 'Cursor CLI is signed out. Sign in to enable generation.'
         await refreshProviders()
         if (!connected)
           throw new Error(
@@ -329,6 +453,13 @@ const createPanel = (
           )
         return 'Cursor CLI login detected. Model access and usage limits are checked when you generate. Select Cursor account as the engine.'
       } catch (error) {
+        cursorConnectionState = abort.signal.aborted ? 'signed-out' : 'error'
+        cursorDetail = abort.signal.aborted
+          ? 'Cursor connection check cancelled. Check again to enable generation.'
+          : error instanceof Error
+            ? error.message.slice(0, 1200)
+            : 'Could not check Cursor CLI.'
+        await refreshProviders()
         if (abort.signal.aborted) throw new OperationCancelled('Cursor connection check cancelled.')
         throw error
       } finally {
@@ -471,6 +602,7 @@ const createPanel = (
     if (command.command === 'getState') {
       await refreshProviders()
       publish(true)
+      void detectCursorLogin()
       return
     }
     if (command.command === 'cancelGeneration') {
@@ -499,7 +631,7 @@ const createPanel = (
         case 'captureSource':
           return await capture()
         case 'configureProvider':
-          return await configure(command.provider)
+          return await configure(command.provider, command.action)
         case 'loadSample':
           await confirmReset()
           sourceUri = undefined
@@ -570,9 +702,32 @@ const createPanel = (
           return 'HTML saved to your chosen location. Review generated code before opening or production use.'
         }
       }
+    } catch (error) {
+      // Also surface setup failures before the status subprocess starts (missing
+      // executable/profile), so inline Check Cursor never fails invisibly.
+      if (
+        command.command === 'configureProvider' &&
+        command.provider === 'cursor' &&
+        !cursorReady &&
+        !(error instanceof OperationCancelled)
+      ) {
+        cursorConnectionState = 'error'
+        cursorDetail =
+          error instanceof Error && error.message
+            ? error.message.slice(0, 1200)
+            : 'Could not configure Cursor CLI. Check the installation and try again.'
+        await refreshProviders()
+      }
+      throw error
     } finally {
       state = { ...state, busy: false, activity: null }
       publish()
+      if (
+        cursorCheckAfterBusy ||
+        command.command === 'captureSource' ||
+        (command.command === 'configureProvider' && command.action === 'login')
+      )
+        void detectCursorLogin()
     }
   }
 
@@ -603,18 +758,35 @@ const createPanel = (
   )
   subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration('spectra.cursorCliPath')) cursorReady = false
+      if (event.affectsConfiguration('spectra.cursorCliPath')) {
+        resetCursorStatus()
+        void detectCursorLogin()
+      }
       if (event.affectsConfiguration('spectra')) guardedRefresh()
     }),
   )
-  subscriptions.push(vscode.workspace.onDidGrantWorkspaceTrust(guardedRefresh))
+  subscriptions.push(
+    vscode.workspace.onDidGrantWorkspaceTrust(() => {
+      guardedRefresh()
+      void detectCursorLogin()
+    }),
+    vscode.window.onDidCloseTerminal((terminal) => {
+      if (loginTerminals.delete(terminal)) void detectCursorLogin()
+    }),
+    vscode.window.onDidChangeWindowState((windowState) => {
+      if (windowState.focused) void detectCursorLogin()
+    }),
+  )
   panel.onDidDispose(() => {
     disposed = true
     controller?.abort()
+    cursorStatusController?.abort()
+    clearInterval(loginPoll)
     for (const subscription of subscriptions) subscription.dispose()
   })
   panel.webview.html = webviewHtml(panel.webview, assets)
   guardedRefresh()
+  void detectCursorLogin()
   return { panel, execute }
 }
 

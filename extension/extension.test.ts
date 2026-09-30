@@ -36,6 +36,17 @@ const setup = () => {
   let saved = ''
   let allowSend = false
   let cursorFailure = false
+  let cursorSignedIn = false
+  let cursorCheckFailure = false
+  let cursorResolveFailure = false
+  let keychainFailure = false
+  let delayedKeyReads: { remaining: number; wait: Promise<void> } | undefined
+  let terminalClosed: (terminal: unknown) => void = () => undefined
+  const scheduledPolls = new Set<() => void>()
+  let deferredCursorStatus: Promise<boolean> | undefined
+  const cursorStatusSignals: AbortSignal[] = []
+  let focusListener: (event: { focused: boolean }) => void = () => undefined
+  let trustListener: () => void = () => undefined
   const cursorCalls: GenerationInput[] = []
   const consentDetails: string[] = []
   let cursorAction = 'Check connection'
@@ -104,6 +115,14 @@ const setup = () => {
         return panel
       },
       onDidChangeActiveTextEditor: disposable,
+      onDidCloseTerminal: (listener: typeof terminalClosed) => {
+        terminalClosed = listener
+        return disposable()
+      },
+      onDidChangeWindowState: (listener: typeof focusListener) => {
+        focusListener = listener
+        return disposable()
+      },
       showErrorMessage: async (error: string) => {
         errors.push(error)
       },
@@ -111,8 +130,9 @@ const setup = () => {
         message.startsWith('Save') ? 'Choose save location' : 'Replace exploration',
       showQuickPick: async () => cursorAction,
       createTerminal: (options: (typeof terminals)[number]) => {
-        terminals.push(options)
-        return { ...disposable(), show: () => undefined }
+        const terminal = { ...options, ...disposable(), show: () => undefined }
+        terminals.push(terminal)
+        return terminal
       },
       showInformationMessage: async (
         _message: string,
@@ -134,7 +154,10 @@ const setup = () => {
       asRelativePath: () => 'src/Card.tsx',
       getWorkspaceFolder: () => ({ uri: uri('/workspace') }),
       getConfiguration: () => ({ get: () => undefined }),
-      onDidGrantWorkspaceTrust: disposable,
+      onDidGrantWorkspaceTrust: (listener: typeof trustListener) => {
+        trustListener = listener
+        return disposable()
+      },
       onDidChangeConfiguration: disposable,
       fs: {
         writeFile: async (_destination: unknown, data: Uint8Array) => {
@@ -161,7 +184,11 @@ const setup = () => {
     globalStorageUri: uri('/extension-storage'),
     subscriptions: [],
     secrets: {
-      get: async (name: string) => secrets.get(name),
+      get: async (name: string) => {
+        if (keychainFailure) throw new Error('keychain locked')
+        if (delayedKeyReads && delayedKeyReads.remaining-- > 0) await delayedKeyReads.wait
+        return secrets.get(name)
+      },
       store: async (name: string, value: string) => {
         secrets.set(name, value)
       },
@@ -192,8 +219,18 @@ const setup = () => {
             preparedProfiles.push(path)
           },
           cursorEnvironment: (path: string) => ({ CURSOR_CONFIG_DIR: path }),
-          resolveCursorExecutable: async () => '/cli/agent',
-          checkCursorConnection: async () => true,
+          resolveCursorExecutable: async () => {
+            if (cursorResolveFailure) throw new Error('Cursor CLI was not found. Install the CLI.')
+            return '/cli/agent'
+          },
+          checkCursorConnection: async (_connection: unknown, signal: AbortSignal) => {
+            cursorStatusSignals.push(signal)
+            if (cursorCheckFailure)
+              throw new Error(
+                'Cursor CLI was not found. Install it or check spectra.cursorCliPath.',
+              )
+            return deferredCursorStatus ?? cursorSignedIn
+          },
           generateWithCursor: async (
             _connection: unknown,
             _model: string,
@@ -214,6 +251,13 @@ const setup = () => {
     Buffer,
     Error,
     AbortController,
+    setInterval: (callback: () => void) => {
+      scheduledPolls.add(callback)
+      return { callback, unref: () => undefined }
+    },
+    clearInterval: (timer?: { callback: () => void }) => {
+      if (timer) scheduledPolls.delete(timer.callback)
+    },
     crypto: webcrypto,
     process,
   })
@@ -267,8 +311,131 @@ const setup = () => {
     },
     terminals,
     preparedProfiles,
+    cursorStatusSignals,
+    delayFirstKeyReads: (wait: Promise<void>) => {
+      delayedKeyReads = { remaining: 2, wait }
+    },
+    failKeychain: () => {
+      keychainFailure = true
+    },
+    failCursorResolve: () => {
+      cursorResolveFailure = true
+    },
+    failCursorCheck: (value: boolean) => {
+      cursorCheckFailure = value
+    },
+    pollLogin: () => {
+      for (const poll of scheduledPolls) poll()
+    },
+    closeLoginTerminal: () => terminalClosed(terminals.at(-1)),
+    setCursorSignedIn: (value: boolean) => {
+      cursorSignedIn = value
+    },
+    deferCursorStatus: (value: Promise<boolean>) => {
+      deferredCursorStatus = value
+    },
+    focus: () => focusListener({ focused: true }),
+    grantTrust: () => {
+      vscode.workspace.isTrusted = true
+      trustListener()
+    },
   }
 }
+
+const flushHost = () => new Promise<void>((resolve) => setImmediate(resolve))
+
+test('existing Cursor login is detected on open without sending source or generating', async () => {
+  const host = setup()
+  host.setCursorSignedIn(true)
+  await host.commands.get('spectra.open')!()
+  await flushHost()
+  assert.equal(
+    host.latestState().providers.find((provider) => provider.id === 'cursor')?.configured,
+    true,
+  )
+  assert.equal(host.latestState().source, null)
+  assert.equal(host.latestState().busy, false)
+  assert.equal(host.confirmations(), 0)
+  assert.equal(host.cursorCalls.length, 0)
+})
+
+test('returning from Cursor sign-in refreshes readiness without losing the captured source', async () => {
+  const host = setup()
+  await host.commands.get('spectra.exploreSelection')!()
+  await flushHost()
+  const source = host.latestState().source
+  host.setCursorAction('Sign in to Cursor')
+  assert.equal((await host.request({ command: 'configureProvider', provider: 'cursor' })).ok, true)
+  assert.equal(
+    host.latestState().providers.find((provider) => provider.id === 'cursor')?.configured,
+    false,
+  )
+  host.setCursorSignedIn(true)
+  host.focus()
+  await flushHost()
+  assert.equal(
+    host.latestState().providers.find((provider) => provider.id === 'cursor')?.configured,
+    true,
+  )
+  assert.deepEqual(host.latestState().source, source)
+  assert.equal(host.latestState().busy, false)
+  assert.equal(host.cursorCalls.length, 0)
+  assert.equal(
+    (await host.request({ command: 'generate', provider: 'cursor', prompt: 'Simplify' })).ok,
+    false,
+  )
+  assert.equal(host.confirmations(), 1, 'generation still requires native transmission consent')
+  assert.equal(host.cursorCalls.length, 0)
+})
+
+test('automatic login checks require trust, deduplicate focus events and abort on panel disposal', async () => {
+  const host = setup()
+  host.vscode.workspace.isTrusted = false
+  await host.commands.get('spectra.open')!()
+  await flushHost()
+  host.focus()
+  assert.equal(host.cursorStatusSignals.length, 0)
+  let finish: (value: boolean) => void = () => undefined
+  host.deferCursorStatus(
+    new Promise<boolean>((resolve) => {
+      finish = resolve
+    }),
+  )
+  host.grantTrust()
+  await flushHost()
+  host.focus()
+  host.focus()
+  assert.equal(host.cursorStatusSignals.length, 1)
+  host.panel.dispose()
+  const messages = host.messages.length
+  assert.equal(host.cursorStatusSignals[0].aborted, true)
+  finish(true)
+  await flushHost()
+  assert.equal(host.messages.length, messages, 'a late login result cannot revive a closed panel')
+})
+
+test('sign-out invalidates pending automatic login results and suspends background checks', async () => {
+  const host = setup()
+  let finish: (value: boolean) => void = () => undefined
+  host.deferCursorStatus(
+    new Promise<boolean>((resolve) => {
+      finish = resolve
+    }),
+  )
+  await host.commands.get('spectra.open')!()
+  await flushHost()
+  host.setCursorAction('Sign out of Cursor CLI')
+  assert.equal((await host.request({ command: 'configureProvider', provider: 'cursor' })).ok, true)
+  assert.equal(host.cursorStatusSignals[0].aborted, true)
+  finish(true)
+  host.focus()
+  await flushHost()
+  assert.equal(
+    host.latestState().providers.find((provider) => provider.id === 'cursor')?.configured,
+    false,
+  )
+  assert.equal(host.cursorStatusSignals.length, 1)
+})
 
 test('Cursor login and model listing use fixed native CLI commands, not webview credentials or shell strings', async () => {
   const host = setup()
@@ -305,6 +472,7 @@ test('Cursor host flow requires setup and consent, then preserves baseline and e
   }
   assert.equal((await host.request(generate)).ok, false)
   assert.equal(host.cursorCalls.length, 0)
+  host.setCursorSignedIn(true)
   assert.equal((await host.request({ command: 'configureProvider', provider: 'cursor' })).ok, true)
   assert.equal(host.secrets.size, 0)
   assert.equal(host.latestState().providers.find((p) => p.id === 'cursor')?.configured, true)
@@ -489,4 +657,98 @@ test('webview HTML never loads a localhost app or grants network/script wildcard
   assert.match(html, /frame-src 'self'/)
   assert.match(html, /form-action 'none'/)
   assert.doesNotMatch(html, /localhost|127\.0\.0\.1|unsafe-eval|allow-same-origin/)
+})
+
+test('login completed after focus is detected by bounded polling and terminal closure', async () => {
+  for (const trigger of ['poll', 'close'] as const) {
+    const host = setup()
+    await host.commands.get('spectra.exploreSelection')!()
+    await flushHost()
+    assert.equal(
+      (await host.request({ command: 'configureProvider', provider: 'cursor', action: 'login' }))
+        .ok,
+      true,
+    )
+    host.focus()
+    await flushHost()
+    assert.equal(host.latestState().providers[0].configured, false)
+    host.setCursorSignedIn(true)
+    if (trigger === 'poll') host.pollLogin()
+    else host.closeLoginTerminal()
+    await flushHost()
+    assert.equal(host.latestState().providers[0].configured, true)
+    assert.equal(host.cursorCalls.length, 0)
+    host.panel.dispose()
+    const calls = host.cursorStatusSignals.length
+    host.pollLogin()
+    assert.equal(host.cursorStatusSignals.length, calls)
+  }
+})
+
+test('failed automatic checks are visible and direct Check Cursor recovers without a picker', async () => {
+  const host = setup()
+  host.failCursorCheck(true)
+  await host.commands.get('spectra.exploreSelection')!()
+  await flushHost()
+  assert.equal(host.latestState().providers[0].connection, 'error')
+  assert.match(host.latestState().providers[0].detail ?? '', /not found/)
+  host.failCursorCheck(false)
+  host.setCursorSignedIn(true)
+  host.setCursorAction('Sign out of Cursor CLI')
+  assert.equal(
+    (await host.request({ command: 'configureProvider', provider: 'cursor', action: 'check' })).ok,
+    true,
+  )
+  assert.equal(host.latestState().providers[0].configured, true)
+  assert.equal(host.terminals.length, 0)
+  assert.equal(host.cursorCalls.length, 0)
+})
+
+test('a direct-provider keychain failure does not block captured source or Cursor readiness', async () => {
+  const host = setup()
+  host.failKeychain()
+  host.setCursorSignedIn(true)
+  await host.commands.get('spectra.exploreSelection')!()
+  await flushHost()
+  assert.equal((await host.request({ command: 'getState' })).ok, true)
+  assert.equal(host.latestState().providers[0].configured, true)
+  assert.match(host.latestState().providers[1].detail ?? '', /keychain/)
+  assert.equal(host.latestState().source?.code, '<article>Unsaved selection</article>')
+  host.allowSend()
+  assert.equal(
+    (await host.request({ command: 'generate', provider: 'cursor', prompt: 'Simplify' })).ok,
+    true,
+  )
+})
+
+test('an older slow provider refresh cannot overwrite a newly detected Cursor login', async () => {
+  const host = setup()
+  let release: () => void = () => undefined
+  host.delayFirstKeyReads(
+    new Promise<void>((resolve) => {
+      release = resolve
+    }),
+  )
+  host.setCursorSignedIn(true)
+  await host.commands.get('spectra.open')!()
+  await flushHost()
+  assert.equal(host.latestState().providers[0].configured, true)
+  release()
+  await flushHost()
+  assert.equal(host.latestState().providers[0].configured, true)
+  assert.equal(host.latestState().providers[0].connection, 'ready')
+})
+
+test('inline Cursor setup exposes failures that happen before launching the CLI', async () => {
+  const host = setup()
+  await host.commands.get('spectra.exploreSelection')!()
+  await flushHost()
+  host.failCursorResolve()
+  assert.equal(
+    (await host.request({ command: 'configureProvider', provider: 'cursor', action: 'check' })).ok,
+    false,
+  )
+  assert.equal(host.latestState().providers[0].connection, 'error')
+  assert.match(host.latestState().providers[0].detail ?? '', /was not found/)
+  assert.equal(host.latestState().busy, false)
 })
