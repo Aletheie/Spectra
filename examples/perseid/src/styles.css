@@ -1,0 +1,47 @@
+@import 'tailwindcss' source('./');
+
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --color-page: oklch(0.96 0.009 247);
+  --color-surface: oklch(1 0 0);
+  --color-ink: oklch(0.27 0.035 247);
+  --color-muted: oklch(0.46 0.025 247);
+  --color-line: oklch(0.83 0.015 247);
+  --color-accent: oklch(0.43 0.085 247);
+  --color-tint: oklch(0.94 0.024 247);
+  --color-danger: oklch(0.43 0.15 25);
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  body {
+    @apply m-0 bg-page font-sans leading-[1.55] text-ink antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply text-balance leading-[1.18] font-bold;
+  }
+  p {
+    @apply text-pretty;
+  }
+  :focus-visible {
+    outline: 3px solid oklch(0.6 0.14 247);
+    outline-offset: 4px;
+  }
+}
+
+@layer theme {
+  .night {
+    color-scheme: dark;
+    --color-page: oklch(0.2 0.025 247);
+    --color-surface: oklch(0.25 0.027 247);
+    --color-ink: oklch(0.94 0.012 247);
+    --color-muted: oklch(0.76 0.023 247);
+    --color-line: oklch(0.44 0.023 247);
+    --color-accent: oklch(0.8 0.075 200);
+    --color-tint: oklch(0.33 0.033 247);
+  }
+}
