@@ -4,6 +4,10 @@ dist/
 *.vsix
 *.tsbuildinfo
 
+# This repository uses npm and package-lock.json
+/pnpm-lock.yaml
+/pnpm-workspace.yaml
+
 # Local configuration
 .env
 .env.*
