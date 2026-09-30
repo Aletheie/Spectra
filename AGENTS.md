@@ -7,8 +7,11 @@ replacing the earlier website. Do not restore Express, a localhost API, environm
 credentials, fake accounts or teams, or Orbit as the default source. Use Spectra as the product name.
 
 The core flow is: select a component → capture source → describe a change → compare three
-directions → refine or remix → choose → copy for Cursor or save HTML. Keep the workspace focused
+directions → refine or remix → choose → replace React, copy for Cursor or save HTML. Keep the workspace focused
 on comparing designs.
+
+The user authorized React + Tailwind output and explicit, reviewed replacement of the captured
+component. This is a bounded native editor action, not permission for automatic agent edits.
 
 ## Read before working
 
@@ -27,6 +30,9 @@ on comparing designs.
   directly; `extension/cursor.ts` runs the authorized local Cursor CLI adapter;
   `extension/session.ts` validates atomic updates; `extension/source.ts` guards capture;
   `extension/webview.ts` builds nonce-protected local panel HTML.
+- `extension/editor-replacement.ts` owns native diff/confirmation/Undo edits. `replacement.ts`
+  guards document hashes and exact ranges; `react-validation.ts` parses without resolving or
+  executing project code. Host-owned target paths/ranges never come from webview messages.
 - React + TypeScript render the editor-native comparison workspace. Vite builds local
   `dist/webview/index.js` and CSS; esbuild bundles the extension host. No HTTP service is needed.
 - `src/domain/protocol.ts` defines the allowlisted webview/host protocol; `src/domain/handoff.ts`
@@ -48,7 +54,8 @@ on comparing designs.
    dependencies or the workspace. Confirm before replacing a captured exploration.
 3. Show the snapshot and context limitations before generation. For **all custom source, including
    HTML**, Original is an **AI reconstruction**, not the running component or a rendered capture.
-   Imports, styles, providers, and application context may be missing. Never compile arbitrary React/JSX.
+   Imports, styles, providers, and application context may be missing. Never compile or run generated
+   React/JSX in the panel. TSX/JSX captures also receive separate React + Tailwind project code.
 4. First live generation for captured source returns a reconstructed baseline plus exactly three
    meaningful design/UX directions. Keep that original fixed for the captured-source session.
    Compare ORIGINAL | A | B | C; show names, hypotheses, changes, independent previews, Choose, Refine.
@@ -57,6 +64,10 @@ on comparing designs.
 6. Choose shows Original ↔ Selected. **Copy for Cursor** writes a handoff to the clipboard for manual
    pasting; **Save HTML** uses a native save dialog. Neither automatically edits project files or
    starts a Cursor agent/chat. Do not label this as automatic Apply.
+   **Copy React** copies exact project code. **Replace component…** explicitly opens a native diff,
+   asks for confirmation, then edits only the captured TSX/JSX range with Undo. Recheck trust,
+   canonical path and full document hash before editing; changed source requires recapture.
+   Never explicitly save, install dependencies or alter configuration. Editor Auto Save still applies.
 7. Keep the last valid canvas and selection on errors, cancellation, or malformed output; prevent
    duplicate work and recover controls. Closing the panel ends its in-memory session.
 
@@ -118,7 +129,7 @@ Documentation-only tasks do not authorize unrelated source changes. Update contr
 ## Scope and handoff
 
 App accounts, databases, teams, billing features, GitHub/Figma integration, analytics, generated React
-compilation, Marketplace publication, and automatic repository edits are out of scope. Optional
+execution/compilation in the panel, Marketplace publication, and unreviewed repository edits are out of scope. Optional
 dependency context, rendered capture, and automated agent integration are future work.
 Summarize changes, checks actually performed, remaining risks, and the smallest next step; distinguish
 curated sample behavior from live AI and unverified requirements from working runtime behavior.

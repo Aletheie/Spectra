@@ -17,13 +17,12 @@ remix two, then take your chosen result back to your project.
 
 ## Get started
 
-```sh
-npm install
-npm run package
-```
+1. [Download Spectra 1.0.0](https://github.com/Aletheie/Spectra/releases/download/v1.0.0/spectra-1.0.0.vsix).
+2. In Cursor, run **Extensions: Install from VSIX…** from the command palette and select
+   `spectra-1.0.0.vsix`.
+3. Reload the editor if prompted.
 
-In Cursor, run **Extensions: Install from VSIX…** from the command palette, select the generated
-`.vsix` file, and reload if prompted.
+See [all releases](https://github.com/Aletheie/Spectra/releases) for release notes and downloads.
 
 Open a trusted workspace and run **Spectra: Configure AI Provider**. Connect your account through
 the [Cursor CLI](https://cursor.com/docs/cli/installation) (macOS, Linux, or WSL), or enter an
@@ -39,11 +38,17 @@ edits, with no account or API key required.
    the whole file, including unsaved edits.
 2. Describe your change, choose a provider, and confirm the source transmission.
 3. Compare **Original | A | B | C**. **Refine** one direction or **Remix** two.
-4. Choose a result. **Copy for Cursor** prepares a brief for manual pasting into Cursor chat;
-   **Save HTML** exports a standalone preview.
+4. Choose a result. For TSX/JSX, **Replace component…** opens a native diff and asks before editing
+   the captured range with Undo; **Copy React** copies its code. **Copy for Cursor** prepares a brief
+   for manual pasting into Cursor chat; **Save HTML** exports a standalone preview.
+
+React output uses Tailwind classes; Tailwind must already be configured in your project. If the
+source changes after capture, recapture it before replacing. Spectra does not explicitly save edits;
+your editor's Auto Save setting still applies. Run your project's checks after reviewing the diff.
 
 **Original is an AI reconstruction.** Spectra captures only the selected source; imports,
-stylesheets, and app context may be missing. Review generated code before use. Exported HTML runs
+stylesheets, and app context may be missing. HTML previews approximate the React code; they do not
+run it. Review generated code before use. Exported HTML runs
 outside the preview sandbox. Copy or save your work before closing the panel; sessions are temporary.
 
 For a guided example, see [Perseid](examples/perseid/README.md): three React + Tailwind components
@@ -54,6 +59,8 @@ and a walkthrough in Czech.
 Open the repository in Cursor and press **F5** to launch an Extension Development Host.
 
 ```sh
+npm install
+npm run package      # Build an installable VSIX from source
 npm run watch        # Rebuild extension bundles as you edit
 npm run dev          # Sample-only browser harness
 npm run check        # Lint, formatting, tests, and production build

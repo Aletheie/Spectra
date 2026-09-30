@@ -51,7 +51,7 @@ const Workspace = () => {
         </span>
         <span>
           <ShieldCheck size={12} aria-hidden="true" />
-          No automatic project edits
+          Review before replacing
         </span>
       </footer>
       {toast && (

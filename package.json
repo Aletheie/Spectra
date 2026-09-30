@@ -1,12 +1,16 @@
 {
   "name": "spectra",
   "displayName": "Spectra",
-  "version": "0.2.5",
+  "version": "1.0.0",
   "private": true,
   "description": "Explore three UI directions for your component, side by side in Cursor.",
   "categories": [
     "Other"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aletheie/Spectra.git"
+  },
   "publisher": "spectra-local",
   "type": "module",
   "main": "./dist/extension.cjs",

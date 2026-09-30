@@ -212,7 +212,8 @@ or the extension host. These restrictions reduce risk but do not guarantee that 
 
 Preview diagnostics offer advisory script-error, empty-content and unavailable-status notices,
 with code inspection and reset. They do not prove that interactions work or that code is safe.
-The footer says **No automatic project edits**: Save HTML can write to a user-chosen project path.
+The footer says **Review before replacing**. Replacement requires native review/confirmation;
+Save HTML can write to a user-chosen project path.
 
 Support keyboard navigation, visible focus, labeled controls, dialog focus management, announced
 errors and status, reduced motion, and readable light, dark, and high-contrast editor themes.
@@ -225,7 +226,7 @@ the comparison using editor theme tokens. Vite builds its local assets; esbuild 
 There is no HTTP service. `npm run dev` is a sample-only **Browser harness** with no editor access
 or live provider calls.
 
-Keep the work focused on capture, comparison, refinement, and manual handoff. Dependency collection,
-rendered capture, automatic project edits, Marketplace publication, app accounts, databases, teams,
+Keep the work focused on capture, comparison, refinement, reviewed React replacement and manual handoff. Dependency collection,
+rendered capture, unreviewed project edits, Marketplace publication, app accounts, databases, teams,
 billing features, GitHub/Figma/MCP integrations, analytics, and generated React compilation are
 outside the current scope. The earlier standalone website architecture has been retired.
