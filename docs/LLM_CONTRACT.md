@@ -39,7 +39,8 @@ command's allowed fields:
   characters. Optional `constraints` is a validated `DesignConstraints` object. No source IDs or replacement implementations.
 - `refine`: provider, prompt, optional constraints and exactly one `sourceIds` entry.
 - `remix`: provider, prompt, optional constraints and exactly two distinct `sourceIds` entries.
-- `copyHandoff`, `exportHtml`: one `variantId` referring to a current stored direction.
+- `copyHandoff`, `exportHtml`, `copyReact`, `replaceComponent`: one `variantId` referring to a
+  current stored direction. React actions cannot supply replacement code or a destination path.
 
 Generate, refine, and remix also accept optional `constraints` with exactly four fields:
 boolean `preserveText`, `preserveBrandColors`, and `preserveDimensions`, plus string `elements`
@@ -220,6 +221,19 @@ Each implementation contains:
 - `css`: nonblank standalone CSS, under 100,000 characters.
 - `js`: a string of vanilla JavaScript or empty string, under 50,000 characters.
 
+For `.tsx` with `typescriptreact` or `.jsx` with `javascriptreact`, the host adds
+`projectOutput: {format: 'react-tailwind', language, scope: 'file' | 'selection'}` to generation
+input. Every returned direction must additionally contain `react: {language: 'tsx' | 'jsx', code}`
+matching that source language. Code is nonblank, at most 60,000 characters, without NUL bytes or
+leading Markdown fences; the object accepts only those two fields. Other source types use
+`projectOutput: {format: 'html'}` and reject React code on directions. Session updates also reject
+missing or mismatched React code for React sources. Original remains an HTML reconstruction.
+
+The prompt requests exact replacement code for the captured scope, preserving public props,
+callbacks, imports, file directives and existing Tailwind setup. It requests matching approximate
+HTML/CSS/JS for comparison. React code is stored and displayed as text, never mounted or executed
+by Spectra; output validation alone cannot prove correspondence or runtime compatibility.
+
 The host copies only these fields and assigns fresh UUIDs, with `original` reserved for the baseline.
 Provider-supplied IDs are not trusted. The entire candidate state is validated before replacing
 anything; duplicate IDs, wrong cardinality, missing original, oversized/invalid fields and baseline
@@ -243,8 +257,10 @@ must return `stop_reason: 'end_turn'` with text-only content blocks. JSON mode i
 4. Refine the exact selected code; remix the requested aspects of both exact selected sources.
    Honor preservation constraints and acknowledge conflicts or missing information. Constraints
    cannot change isolation, credentials, facts, or the output contract.
-5. Use self-contained responsive HTML/CSS/vanilla JS with system fonts and accessible controls.
-   No React/JSX, libraries, imports, build steps, external assets, network calls or parent access.
+5. Preview fields use self-contained responsive HTML/CSS/vanilla JS with system fonts and
+   accessible controls. No React/JSX, libraries, imports, build steps, external assets, network calls
+   or parent access in previews. Separate React project code preserves the captured application's
+   behavior and existing dependencies; it is not executed in the preview.
 6. Local interactions use `addEventListener` in `js`, not inline handlers. No navigation, real form
    submissions, popups, browser alert/confirm/prompt calls or real purchases. Local dialog/popover
    UI with accessible focus handling is allowed when it is the component being explored.
@@ -290,6 +306,27 @@ the user-selected destination. Opening the exported document runs outside iframe
 `src/domain/handoff.ts` builds a manual brief with exact selected code, snapshot, and revision
 constraints, and escapes Markdown fences. The developer reviews current project context and
 adapts the HTML/CSS/JS. Neither export edits the component.
+
+## Confirmed React replacement
+
+`copyReact` copies the exact host-stored revision's React code in a trusted workspace.
+`replaceComponent` resolves the same revision and a private host-owned target, never a webview path.
+Capture retains the canonical local path, selected offsets and a hash of the whole current document
+for conflict detection. This additional metadata is not sent to the model or webview.
+
+`extension/replacement.ts` requires unchanged document contents, preserves surrounding text and
+normalizes line endings. `extension/react-validation.ts` parses both complete documents in memory
+without dependency resolution, project configuration, emission or execution. It rejects syntax
+errors, changed export names/directives and new static imports except React. This is not a full
+typecheck, dependency audit or proof that props and behavior are preserved.
+
+`extension/editor-replacement.ts` rechecks trust, panel lifetime, workspace membership and canonical
+path, then opens a native diff and asks for explicit confirmation. It rechecks the document after
+confirmation and editor focus before one `TextEditor.edit` with Undo stops. Failed edits do not
+advance the stored replacement target. Successful edits update its hash and range, leaving the
+session's captured snapshot and Original fixed. Spectra does not explicitly save the document;
+the editor's Auto Save setting still applies. No CLI agent, new dependency or arbitrary file write
+is involved. Native confirmation and conflict checks require real-editor rehearsal as well as mocks.
 
 ## Advisory preview diagnostics
 

@@ -124,6 +124,19 @@ An unchecked item means it still needs testing.
 - [ ] Saved HTML is self-contained and does not require React, Tailwind or a build step.
 - [ ] Closing/reopening the panel clears its in-memory session without deleting saved files or keys.
 
+## React code and confirmed replacement
+
+- [ ] Capture TSX and JSX: every direction contains matching React code plus an approximate HTML
+      preview. Inspect code, Copy React and the Cursor handoff use the exact selected revision.
+- [ ] Replace component opens the complete before/after diff and asks for confirmation. Confirmed
+      replacement changes only the captured range; surrounding text and Undo remain intact.
+- [ ] Try whole-file and selection replacement, then a second revision. Test Auto Save on and off.
+      Verify the result with the project's typecheck, Tailwind setup and real application behavior.
+- [ ] Edit the document after capture, during review and before editor focus. Replacement must refuse
+      stale content. Cancellation, changed links, lost trust and panel disposal must not overwrite it.
+- [ ] Browser harness and curated samples offer no editor replacement. Generated React is never
+      executed in previews; the HTML preview remains an approximation.
+
 ## Errors and cancellation
 
 - [ ] Blank/oversized instructions and forged extra command fields fail before provider access.
@@ -217,3 +230,9 @@ Use **Spectra: Open Curated Sample** explicitly; demo mode is not available for 
 
 Record the date, environment, commands run, results, and package path. Include CLI version and model
 IDs for live checks. Note anything you could not test, the reason, and the next check to run.
+
+2026-09-30, commit snapshot `9e67c28`: `npm run check` passed lint, formatting, 76 unit tests and
+both production builds in an isolated checkout using the installed dependencies. The 19 browser
+tests passed using the same code with a temporary Playwright configuration on port 5197 because
+5199 was occupied. Editor and provider tests use mocks. No F5 rehearsal, native replacement,
+clipboard, live provider call or new package installation was performed in this commit session.
