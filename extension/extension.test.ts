@@ -10,26 +10,30 @@ import type { EditorCommand, HostMessage } from '../src/domain/protocol'
 import { validHostMessage } from '../src/domain/validation'
 import { demoVariants, original } from '../src/variants'
 import type { GenerationInput, GenerationResult } from './providers'
+import * as providerFunctions from './providers'
+import { createPreviewStyler } from './preview-styles'
 import { emptyConstraints } from '../src/domain/constraints'
 const bundle = buildSync({
   entryPoints: [fileURLToPath(new URL('./extension.ts', import.meta.url))],
   bundle: true,
   platform: 'node',
   format: 'cjs',
-  external: ['vscode', './providers', './cursor', 'typescript'],
+  external: ['vscode', './providers', './cursor', './preview-styles', 'typescript'],
   write: false,
 }).outputFiles[0].text
 
 const uri = (path: string) => ({ scheme: 'file', fsPath: path, toString: () => `file://${path}` })
 const disposable = () => ({ dispose: () => undefined })
 
-const setup = () => {
+const setup = (appName = 'Cursor') => {
   const commands = new Map<string, () => Promise<void>>()
   const messages: HostMessage[] = []
   const errors: string[] = []
   let messageListener: (message: unknown) => void = () => undefined
   const disposeListeners = new Set<() => void>()
   let providerCalls = 0
+  let directSuccess = false
+  let styleReads = 0
   let confirmations = 0
   let panels = 0
   let clipboard = ''
@@ -47,6 +51,9 @@ const setup = () => {
   const cursorStatusSignals: AbortSignal[] = []
   let focusListener: (event: { focused: boolean }) => void = () => undefined
   let trustListener: () => void = () => undefined
+  let configurationListener: (event: {
+    affectsConfiguration: (key: string) => boolean
+  }) => void = () => undefined
   const cursorCalls: GenerationInput[] = []
   const cursorGenerationSignals: AbortSignal[] = []
   let deferredCursorGeneration: Promise<GenerationResult> | undefined
@@ -186,7 +193,10 @@ const setup = () => {
         trustListener = listener
         return disposable()
       },
-      onDidChangeConfiguration: disposable,
+      onDidChangeConfiguration: (listener: typeof configurationListener) => {
+        configurationListener = listener
+        return disposable()
+      },
       fs: {
         writeFile: async (_destination: unknown, data: Uint8Array) => {
           saved = Buffer.from(data).toString('utf8')
@@ -200,6 +210,7 @@ const setup = () => {
       },
     },
     env: {
+      appName,
       clipboard: {
         writeText: async (value: string) => {
           clipboard = value
@@ -233,11 +244,40 @@ const setup = () => {
     exports: module.exports,
     require: (name: string) => {
       if (name === 'vscode') return vscode
-      if (name === 'node:fs/promises') return { realpath: async (path: string) => path }
+      if (name === 'node:fs/promises')
+        return {
+          realpath: async (path: string) => path,
+          readFile: async (path: string) => {
+            assert.equal(path, '/extension/dist/preview-base.css')
+            styleReads++
+            return '@theme {--spacing:0.25rem;} @tailwind utilities;'
+          },
+        }
+      if (name === './preview-styles') return { createPreviewStyler }
       if (name === './providers')
         return {
-          generateWithProvider: async () => {
+          ...providerFunctions,
+          generateWithProvider: async (
+            _provider: string,
+            _model: string,
+            _key: string,
+            input: GenerationInput,
+          ) => {
             providerCalls++
+            if (directSuccess)
+              return {
+                ...(input.target === 'original' ? { original } : {}),
+                variants: demoVariants
+                  .slice(0, input.target === 'original' ? 0 : 1)
+                  .map((variant) => ({
+                    ...variant,
+                    id: `direct-${providerCalls}`,
+                    react: {
+                      language: 'tsx',
+                      code: '<article className="p-4">Unsaved selection</article>',
+                    },
+                  })),
+              }
             throw new Error('Provider unavailable in test')
           },
         }
@@ -280,9 +320,9 @@ const setup = () => {
             if (cursorFailure) throw new Error('Cursor test failure')
             if (deferredCursorGeneration) return deferredCursorGeneration
             return {
-              ...(input.original ? {} : { original }),
+              ...(input.target === 'original' ? { original } : {}),
               variants: demoVariants
-                .slice(0, input.action === 'generate' ? 3 : 1)
+                .slice(0, input.target === 'original' ? 0 : 1)
                 .map((variant, i) => ({
                   ...variant,
                   id: `cursor-${cursorCalls.length}-${i}`,
@@ -299,6 +339,7 @@ const setup = () => {
     Buffer,
     Error,
     AbortController,
+    AbortSignal,
     setInterval: (callback: () => void) => {
       scheduledPolls.add(callback)
       return { callback, unref: () => undefined }
@@ -345,6 +386,10 @@ const setup = () => {
       allowSend = true
     },
     providerCalls: () => providerCalls,
+    succeedDirectProvider: () => {
+      directSuccess = true
+    },
+    styleReads: () => styleReads,
     confirmations: () => confirmations,
     panels: () => panels,
     clipboard: () => clipboard,
@@ -368,6 +413,10 @@ const setup = () => {
     cursorStatusSignals,
     cursorModelSignals,
     settings,
+    configurationChanged: (key: string) =>
+      configurationListener({
+        affectsConfiguration: (section) => key === section || key.startsWith(`${section}.`),
+      }),
     settingsUpdates,
     selectCursorModel: (id?: string) => {
       selectedCursorModel = id
@@ -409,6 +458,85 @@ const setup = () => {
 }
 
 const flushHost = () => new Promise<void>((resolve) => setImmediate(resolve))
+
+test('VS Code and compatible editor hosts capture, generate and export without Cursor CLI', async () => {
+  for (const appName of ['Visual Studio Code', 'Antigravity IDE', 'VSCodium', 'Windsurf']) {
+    const host = setup(appName)
+    host.failCursorResolve()
+    host.secrets.set('spectra.openai.apiKey', 'test-only-key')
+    host.succeedDirectProvider()
+    await host.commands.get('spectra.open')!()
+    await flushHost()
+    assert.deepEqual(
+      Array.from(host.latestState().providers, (provider) => provider.id),
+      ['openai', 'anthropic', 'cursor'],
+    )
+    assert.equal(host.latestState().providers[0].configured, true)
+    assert.equal(host.latestState().providers[2].connection, 'signed-out')
+    await host.commands.get('spectra.exploreSelection')!()
+    host.focus()
+    await flushHost()
+    assert.equal(host.cursorStatusSignals.length, 0)
+    assert.equal(host.preparedProfiles.length, 0)
+    assert.equal(host.terminals.length, 0)
+    assert.equal(host.latestState().source?.code, '<article>Unsaved selection</article>')
+    host.allowSend()
+    assert.equal(
+      (
+        await host.request({
+          command: 'generate',
+          provider: 'openai',
+          prompt: 'Clarify the primary action',
+        })
+      ).ok,
+      true,
+    )
+    assert.equal(host.providerCalls(), 4)
+    assert.equal(host.latestState().variants.length, 3)
+    const selected = host.latestState().variants[0]
+    const copied = await host.request({ command: 'copyHandoff', variantId: selected.id })
+    assert.equal(copied.ok, true)
+    assert.match(copied.message ?? '', /your editor/)
+    assert.ok(host.clipboard().includes(selected.html))
+    assert.equal((await host.request({ command: 'exportHtml', variantId: selected.id })).ok, true)
+    assert.equal(host.saved(), exportDocument(selected))
+    assert.equal(host.cursorCalls.length, 0)
+    assert.equal(host.cursorStatusSignals.length, 0)
+    assert.ok(!JSON.stringify(host.messages).includes('test-only-key'))
+    host.panel.dispose()
+  }
+})
+
+test('Cursor CLI remains opt-in from another editor or an explicit configured executable', async () => {
+  const manual = setup('Visual Studio Code')
+  manual.setCursorSignedIn(true)
+  await manual.commands.get('spectra.open')!()
+  await flushHost()
+  assert.equal(manual.cursorStatusSignals.length, 0)
+  assert.equal(
+    (await manual.request({ command: 'configureProvider', provider: 'cursor', action: 'check' }))
+      .ok,
+    true,
+  )
+  assert.equal(
+    manual.latestState().providers.find((provider) => provider.id === 'cursor')?.configured,
+    true,
+  )
+  assert.equal(manual.cursorStatusSignals.length, 1)
+  manual.panel.dispose()
+
+  const configured = setup('VSCodium')
+  configured.settings.set('cursorCliPath', '/cli/agent')
+  configured.setCursorSignedIn(true)
+  await configured.commands.get('spectra.open')!()
+  await flushHost()
+  assert.equal(
+    configured.latestState().providers.find((provider) => provider.id === 'cursor')?.configured,
+    true,
+  )
+  assert.equal(configured.cursorStatusSignals.length, 1)
+  configured.panel.dispose()
+})
 
 test('existing Cursor login is detected on open without sending source or generating', async () => {
   const host = setup()
@@ -503,6 +631,49 @@ test('sign-out invalidates pending automatic login results and suspends backgrou
   assert.equal(host.cursorStatusSignals.length, 1)
 })
 
+test('CLI path changes opt in outside Cursor but cannot undo explicit sign-out', async () => {
+  for (const appName of ['Visual Studio Code', 'Cursor']) {
+    const host = setup(appName)
+    host.setCursorSignedIn(true)
+    await host.commands.get('spectra.open')!()
+    await flushHost()
+    host.settings.set('cursorCliPath', '/cli/agent')
+    host.configurationChanged('spectra.cursorCliPath')
+    await flushHost()
+    assert.equal(
+      host.latestState().providers.find((provider) => provider.id === 'cursor')?.configured,
+      true,
+    )
+    host.setCursorAction('Sign out of Cursor CLI')
+    assert.equal(
+      (await host.request({ command: 'configureProvider', provider: 'cursor' })).ok,
+      true,
+    )
+    const calls = host.cursorStatusSignals.length
+    host.settings.set('cursorCliPath', '/cli/other-agent')
+    host.configurationChanged('spectra.cursorCliPath')
+    host.focus()
+    await host.commands.get('spectra.exploreSelection')!()
+    await flushHost()
+    assert.equal(host.cursorStatusSignals.length, calls)
+    assert.equal(
+      host.latestState().providers.find((provider) => provider.id === 'cursor')?.configured,
+      false,
+    )
+    assert.equal(
+      (await host.request({ command: 'configureProvider', provider: 'cursor', action: 'check' }))
+        .ok,
+      true,
+    )
+    assert.equal(host.cursorStatusSignals.length, calls + 1)
+    assert.equal(
+      host.latestState().providers.find((provider) => provider.id === 'cursor')?.configured,
+      true,
+    )
+    host.panel.dispose()
+  }
+})
+
 test('Cursor login and logout use fixed native CLI commands, not webview credentials or shell strings', async () => {
   const host = setup()
   await host.commands.get('spectra.open')!()
@@ -545,7 +716,7 @@ test('Cursor host flow requires setup and consent, then preserves baseline and e
   assert.equal(host.cursorCalls.length, 0)
   host.allowSend()
   assert.equal((await host.request(generate)).ok, true)
-  assert.match(host.progressMessages.at(-1)!, /elapsed.*up to 10 min/)
+  assert.match(host.progressMessages.at(-1)!, /4\/4 previews ready.*elapsed/)
   assert.equal(host.activeIntervals(), 0, 'success stops the elapsed-time updates')
   const baseline = host.latestState().original
   const variants = host.latestState().variants
@@ -568,8 +739,8 @@ test('Cursor host flow requires setup and consent, then preserves baseline and e
     ).ok,
     true,
   )
-  assert.deepEqual(host.cursorCalls[1].sources, [variants[1]])
-  assert.deepEqual({ ...host.cursorCalls[1].constraints }, generate.constraints)
+  assert.deepEqual(host.cursorCalls[4].sources, [variants[1]])
+  assert.deepEqual({ ...host.cursorCalls[4].constraints }, generate.constraints)
   assert.equal(
     (
       await host.request({
@@ -581,10 +752,11 @@ test('Cursor host flow requires setup and consent, then preserves baseline and e
     ).ok,
     true,
   )
-  assert.deepEqual(host.cursorCalls[2].sources, [variants[2], variants[0]])
-  assert.deepEqual({ ...host.cursorCalls[2].constraints }, generate.constraints)
+  assert.deepEqual(host.cursorCalls[5].sources, [variants[2], variants[0]])
+  assert.deepEqual({ ...host.cursorCalls[5].constraints }, generate.constraints)
   assert.deepEqual(host.latestState().original, baseline)
   assert.equal(host.latestState().variants.length, 5)
+  assert.equal(host.styleReads(), 1, 'generation, refine and remix share the bundled style preset')
   const previous = host.latestState()
   host.failCursor()
   assert.equal((await host.request(generate)).ok, false)
@@ -595,7 +767,7 @@ test('Cursor host flow requires setup and consent, then preserves baseline and e
   host.vscode.workspace.isTrusted = false
   assert.equal((await host.request(generate)).ok, false)
   assert.equal((await host.request({ command: 'configureProvider', provider: 'cursor' })).ok, false)
-  assert.equal(host.cursorCalls.length, 4)
+  assert.equal(host.cursorCalls.length, 8)
 })
 
 test('Cancelling slow Cursor generation aborts it, keeps the canvas and stops progress updates', async () => {
@@ -621,7 +793,7 @@ test('Cancelling slow Cursor generation aborts it, keeps the canvas and stops pr
   await flushHost()
   assert.equal(host.latestState().busy, true)
   assert.equal(host.activeIntervals(), 1)
-  assert.match(host.progressMessages.at(-1)!, /elapsed.*up to 10 min/)
+  assert.match(host.progressMessages.at(-1)!, /0\/3 previews ready.*elapsed/)
   host.pollLogin()
   assert.equal(host.progressMessages.length, 2)
   assert.equal((await host.request({ command: 'cancelGeneration' })).ok, true)
@@ -725,7 +897,7 @@ test('capture uses unsaved selected source and live cancellation/failure preserv
   host.allowSend()
   const failed = await host.request({ command: 'generate', provider: 'openai', prompt: 'Premium' })
   assert.equal(failed.ok, false)
-  assert.equal(host.providerCalls(), 1)
+  assert.equal(host.providerCalls(), 2)
   assert.equal(host.latestState().source, captured.source)
   assert.equal(host.latestState().original, null)
   assert.equal(host.latestState().variants.length, 0)

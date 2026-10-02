@@ -4,7 +4,7 @@
 
 <h1 align="center">Spectra</h1>
 
-<p align="center">Compare three UI directions for your component, right inside Cursor.</p>
+<p align="center">Compare three UI directions inside VS Code, Cursor and compatible editors.</p>
 
 <p align="center">Built for the <strong>spaceXAI &amp; Cursor hackathon</strong>.</p>
 
@@ -16,17 +16,27 @@ remix two, then take your chosen result back to your project.
 
 ## Get started
 
-1. [Download Spectra 1.0.0](https://github.com/Aletheie/Spectra/releases/download/v1.0.0/spectra-1.0.0.vsix).
-2. In Cursor, run **Extensions: Install from VSIX…** from the command palette and select
-   `spectra-1.0.0.vsix`.
+1. [Download Spectra 1.0.3](https://github.com/Aletheie/Spectra/releases/download/v1.0.3/spectra-1.0.3.vsix).
+2. In your desktop editor, run **Extensions: Install from VSIX…** from the command palette and
+   select the package.
 3. Reload the editor if prompted.
 
 See [all releases](https://github.com/Aletheie/Spectra/releases) for release notes and downloads.
+To build from source, run `npm install` and `npm run package`. GitHub releases distribute a VSIX;
+Spectra is not published on the Visual Studio Marketplace.
 
-Open a trusted workspace and run **Spectra: Configure AI Provider**. Connect your account through
-the [Cursor CLI](https://cursor.com/docs/cli/installation) (macOS, Linux, or WSL), or enter an
-**OpenAI** or **Anthropic** API key. API keys are stored in editor SecretStorage; the selected
-provider's usage limits and billing apply.
+Open a trusted local workspace and run **Spectra: Configure AI Provider**. Add your **OpenAI** or
+**Anthropic** API key using the editor's password prompt. These providers work without Cursor
+installed. Keys stay in that editor profile's SecretStorage; API usage is billed separately from
+editor subscriptions. Configure credentials again when switching editors/profiles.
+
+The [Cursor CLI](https://cursor.com/docs/cli/installation) is an optional provider on macOS, Linux
+or WSL, including from other editors. Cursor defaults to it; other editors list direct APIs first
+and do not check Cursor CLI until explicitly configured. No editor's built-in AI login is inherited.
+
+Spectra requires a desktop Node extension host compatible with VS Code 1.96+. See
+[editor compatibility](docs/EDITOR_COMPATIBILITY.md) for tested versions and Antigravity's separate
+IDE/desktop products. Browser-only editors and standalone agent apps are not VSIX targets.
 
 To try Spectra offline, run **Spectra: Open Curated Sample**. It uses prepared designs and preset
 edits, with no account or API key required.
@@ -38,8 +48,8 @@ edits, with no account or API key required.
 2. Describe your change, choose a provider, and confirm the source transmission.
 3. Compare **Original | A | B | C**. **Refine** one direction or **Remix** two.
 4. Choose a result. For TSX/JSX, **Replace component…** opens a native diff and asks before editing
-   the captured range with Undo; **Copy React** copies its code. **Copy for Cursor** prepares a brief
-   for manual pasting into Cursor chat; **Save HTML** exports a standalone preview.
+   the captured range with Undo; **Copy React** copies its code. **Copy brief** prepares context
+   for manual pasting into your editor's AI chat; **Save HTML** exports a standalone preview.
 
 React output uses Tailwind classes; Tailwind must already be configured in your project. If the
 source changes after capture, recapture it before replacing. Spectra does not explicitly save edits;
@@ -55,7 +65,8 @@ and a walkthrough in Czech.
 
 ## Development
 
-Open the repository in Cursor and press **F5** to launch an Extension Development Host.
+Open the repository in VS Code or a compatible editor and press **F5** to launch an Extension
+Development Host.
 
 ```sh
 npm install
@@ -63,6 +74,7 @@ npm run package      # Build an installable VSIX from source
 npm run watch        # Rebuild extension bundles as you edit
 npm run dev          # Sample-only browser harness
 npm run check        # Lint, formatting, tests, and production build
+npm run test:native -- --editor "/absolute/path/to/editor/executable"
 ```
 
 [Product guide](docs/PRODUCT.md) · [Source & privacy](docs/LLM_CONTRACT.md) ·

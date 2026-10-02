@@ -1,7 +1,7 @@
 import { constraintsSummary, emptyConstraints } from '../src/domain/constraints'
 import * as vscode from 'vscode'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { realpath } from 'node:fs/promises'
+import { readFile, realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { demoResult } from '../src/domain/demo'
@@ -24,7 +24,9 @@ import { createEditorReplacement, type ReplacementTarget } from './editor-replac
 import { CURSOR_GENERATION_TIMEOUT_MS } from '../src/domain/timeouts'
 import { parseGeneratedVariants, validEditorRequest } from '../src/domain/validation'
 import { original as sampleOriginal } from '../src/variants'
-import { generateWithProvider, type GenerationResult } from './providers'
+import { generateWithProvider, PROVIDER_TIMEOUT_MS, type GenerationResult } from './providers'
+import { generateComparison, generationRequestCount } from './generation'
+import { createPreviewStyler } from './preview-styles'
 import {
   applyGeneration,
   resolveConstraints,
@@ -44,7 +46,15 @@ import {
 
 const defaults = { cursor: 'auto', openai: 'gpt-4.1', anthropic: 'claude-sonnet-4-20250514' }
 const labels = { cursor: 'Cursor account', openai: 'OpenAI', anthropic: 'Anthropic / Claude' }
-const providers = ['cursor', 'openai', 'anthropic'] as const
+const isCursorEditor = /\bcursor\b/i.test(vscode.env.appName)
+// The host orders providers for the UI and native picker. Cursor CLI is optional in every editor.
+const providers: readonly LiveProvider[] = isCursorEditor
+  ? ['cursor', 'openai', 'anthropic']
+  : ['openai', 'anthropic', 'cursor']
+const hasCursorPath = () => {
+  const path: unknown = vscode.workspace.getConfiguration('spectra').get('cursorCliPath')
+  return typeof path === 'string' && path.trim().length > 0
+}
 const secretName = (provider: LiveProvider) => `spectra.${provider}.apiKey`
 const modelFor = (provider: LiveProvider) => {
   const value: unknown = vscode.workspace.getConfiguration('spectra').get(`${provider}Model`)
@@ -55,7 +65,7 @@ const modelFor = (provider: LiveProvider) => {
 const trust = () => {
   if (!vscode.workspace.isTrusted)
     throw new Error(
-      'Trust this workspace in Cursor before accessing source, configuring keys, using AI or exporting.',
+      'Trust this workspace in your editor before accessing source, configuring keys, using AI or exporting.',
     )
 }
 const webviewHtml = (webview: vscode.Webview, root: vscode.Uri) =>
@@ -91,14 +101,16 @@ const createPanel = (
   let replacementTarget: ReplacementTarget | undefined
   let disposed = false
   let controller: AbortController | undefined
+  let previewStyler: ReturnType<typeof createPreviewStyler> | undefined
   let cursorReady = false
   let cursorConnectionState: ProviderInfo['connection'] = 'signed-out'
-  let cursorDetail = 'Check Cursor CLI login or sign in.'
+  let cursorDetail = 'Optional provider · Connect Cursor CLI to use your Cursor account.'
   let loginPoll: ReturnType<typeof setInterval> | undefined
   const loginTerminals = new Set<vscode.Terminal>()
   let providerRefresh = 0
   let cursorStatusController: AbortController | undefined
-  let cursorAutoCheck = true
+  let cursorAutoCheck = isCursorEditor || hasCursorPath()
+  let cursorSignedOut = false
   let cursorCheckAfterBusy = false
   const cursorConnection = async () => ({
     executable: await resolveCursorExecutable(
@@ -152,17 +164,24 @@ const createPanel = (
     )
     if (disposed || refresh !== providerRefresh) return
     // Read current Cursor readiness after asynchronous key reads, never a stale snapshot.
-    const info: ProviderInfo[] = [
-      {
-        id: 'cursor',
-        label: labels.cursor,
-        model: modelFor('cursor'),
-        configured: cursorReady,
-        connection: cursorConnectionState,
-        detail: cursorDetail,
-      },
-      ...keys.map((key) => ({ ...key, label: labels[key.id], model: modelFor(key.id) })),
-    ]
+    const info: ProviderInfo[] = providers.map((id) =>
+      id === 'cursor'
+        ? {
+            id,
+            label: labels[id],
+            model: modelFor(id),
+            configured: cursorReady,
+            connection: cursorConnectionState,
+            detail: cursorDetail,
+          }
+        : {
+            id,
+            label: labels[id],
+            model: modelFor(id),
+            configured: false,
+            ...keys.find((key) => key.id === id),
+          },
+    )
     state = { ...state, providers: info, trusted: vscode.workspace.isTrusted }
     publish()
   }
@@ -381,7 +400,8 @@ const createPanel = (
       }
       if (action !== 'List models') {
         resetCursorStatus()
-        cursorAutoCheck = action !== 'Sign out of Cursor CLI'
+        cursorSignedOut = action === 'Sign out of Cursor CLI'
+        cursorAutoCheck = !cursorSignedOut
         await refreshProviders()
       }
       const connection = await cursorConnection()
@@ -479,7 +499,7 @@ const createPanel = (
         }
         if (action === 'Sign out of Cursor CLI')
           return 'Cursor CLI sign-out started in the terminal. This affects other CLI sessions and does not delete conversation history.'
-        return 'Complete Cursor sign-in in the browser, then return to Cursor. Spectra will check the login automatically. Check connection is also available in AI providers.'
+        return 'Complete Cursor sign-in in the browser, then return to your editor. Spectra will check the login automatically. Check connection is also available in AI providers.'
       }
       const abort = new AbortController()
       controller = abort
@@ -601,11 +621,24 @@ const createPanel = (
       if (provider !== 'cursor' && !key)
         throw new Error(`No ${labels[provider]} key saved. Use Spectra: Configure AI Provider.`)
       const connection = provider === 'cursor' ? await cursorConnection() : undefined
+      const input = {
+        action: command.command,
+        prompt: command.prompt,
+        intent: command.command === 'generate' ? command.prompt : state.intent,
+        constraints,
+        source: state.source,
+        original: state.original,
+        sources,
+      }
+      const requestCount = generationRequestCount(input)
+      const prepareStyles = (previewStyler ??= createPreviewStyler(
+        await readFile(join(context.extensionUri.fsPath, 'dist', 'preview-base.css'), 'utf8'),
+      ))
       const answer = await vscode.window.showInformationMessage(
         `Send this exploration to ${labels[provider]}?`,
         {
           modal: true,
-          detail: `${state.source ? `${state.source.relativePath}, lines ${state.source.startLine}–${state.source.endLine} (${state.source.code.length.toLocaleString()} characters, possibly unsaved edits)` : 'Curated Orbit sample'}\n\nSends the captured source, original preview if available, current intent, instruction and design constraints, and ${sources.length} exact selected implementation(s). Model: ${model}. Design constraints: ${constraintsSummary(constraints) || 'None specified'}. No other project files are collected. Review the source for secrets first. ${provider === 'cursor' ? 'Uses Cursor CLI with its signed-in Cursor account, a temporary workspace and denied file/shell/MCP tools. Cursor account limits, billing, data policies and CLI history storage apply. This does not use your editor chat history or its selected model.' : 'Direct API charges and the provider’s data policies apply.'}`,
+          detail: `${state.source ? `${state.source.relativePath}, lines ${state.source.startLine}–${state.source.endLine} (${state.source.code.length.toLocaleString()} characters, possibly unsaved edits)` : 'Curated Orbit sample'}\n\n${requestCount} request(s), at most two at once. Each sends the captured source, original preview if available, current intent, instruction and design constraints, and ${sources.length} exact selected implementation(s). Model: ${model}. Design constraints: ${constraintsSummary(constraints) || 'None specified'}. No other project files are collected. Review the source for secrets first. ${provider === 'cursor' ? 'Uses Cursor CLI with its signed-in Cursor account, temporary workspaces and denied file/shell/MCP tools. Cursor account limits, billing, data policies and CLI history storage apply. This does not use your editor chat history or its selected model.' : 'Direct API charges and the provider’s data policies apply. Separate requests repeat input context and can cost more than one combined request.'}`,
         },
         'Send to provider',
       )
@@ -629,28 +662,49 @@ const createPanel = (
             const cancel = token.onCancellationRequested(() => abort.abort())
             if (token.isCancellationRequested) abort.abort()
             const started = Date.now()
+            const deadline = AbortSignal.timeout(
+              connection ? CURSOR_GENERATION_TIMEOUT_MS : PROVIDER_TIMEOUT_MS,
+            )
+            const signal = AbortSignal.any([abort.signal, deadline])
+            let completed = 0
             const reportWaiting = () => {
               const seconds = Math.floor((Date.now() - started) / 1000)
               progress.report({
-                message: `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')} elapsed · Waiting for Cursor's complete response (up to ${CURSOR_GENERATION_TIMEOUT_MS / 60000} min).`,
+                message: `${completed}/${requestCount} previews ready · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')} elapsed`,
               })
             }
-            const progressTimer = connection ? setInterval(reportWaiting, 1000) : undefined
-            progressTimer?.unref()
+            const progressTimer = setInterval(reportWaiting, 1000)
+            progressTimer.unref()
             try {
-              if (connection) reportWaiting()
-              const input = {
-                action: command.command,
-                prompt: command.prompt,
-                intent: command.command === 'generate' ? command.prompt : state.intent,
-                constraints,
-                source: state.source,
-                original: state.original,
-                sources,
-              }
-              return connection
-                ? await generateWithCursor(connection, model, input, abort.signal)
-                : await generateWithProvider(provider, model, key ?? '', input, abort.signal)
+              if (connection) await prepareCursorProfile(connection.configDir)
+              return await generateComparison(
+                input,
+                signal,
+                (task, taskSignal) =>
+                  connection
+                    ? generateWithCursor(
+                        { ...connection, profilePrepared: true },
+                        model,
+                        task,
+                        taskSignal,
+                      )
+                    : generateWithProvider(provider, model, key ?? '', task, taskSignal),
+                prepareStyles,
+                (progressState) => {
+                  ensureOpen()
+                  completed = progressState.completed
+                  if (state.activity)
+                    state = { ...state, activity: { ...state.activity, progress: progressState } }
+                  publish()
+                  reportWaiting()
+                },
+              )
+            } catch (error) {
+              if (deadline.aborted && !abort.signal.aborted)
+                throw new Error(
+                  `Generation timed out after ${connection ? '10 minutes' : '90 seconds'}. Try a smaller selection or another model. Your canvas is unchanged.`,
+                )
+              throw error
             } finally {
               clearInterval(progressTimer)
               cancel.dispose()
@@ -668,6 +722,7 @@ const createPanel = (
       }
     }
     ensureOpen()
+    if (command.provider !== 'demo') trust()
     state = applyGeneration(state, command, result)
     return command.provider === 'demo'
       ? 'Curated sample updated. Instructions use limited preset transformations.'
@@ -766,7 +821,7 @@ const createPanel = (
           }
           if (command.command === 'copyHandoff') {
             await vscode.env.clipboard.writeText(createHandoff(state.source, state.intent, variant))
-            return 'Implementation brief copied. Paste it manually into Cursor; no project files were changed.'
+            return 'Implementation brief copied. Paste it manually into your editor’s AI chat; no project files were changed.'
           }
           const review = await vscode.window.showWarningMessage(
             'Save generated code outside the preview sandbox?',
@@ -854,6 +909,7 @@ const createPanel = (
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration('spectra.cursorCliPath')) {
         resetCursorStatus()
+        cursorAutoCheck = !cursorSignedOut && (isCursorEditor || hasCursorPath())
         void detectCursorLogin()
       }
       if (event.affectsConfiguration('spectra')) guardedRefresh()
@@ -873,6 +929,7 @@ const createPanel = (
   )
   panel.onDidDispose(() => {
     disposed = true
+    previewStyler = undefined
     editorReplacement.dispose()
     controller?.abort()
     cursorStatusController?.abort()

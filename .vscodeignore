@@ -6,6 +6,8 @@
 !AGENT.MD
 !docs/*.md
 !dist/extension.cjs
+!dist/react-validation.cjs
+!dist/preview-base.css
 !dist/webview/index.js
 !dist/webview/index.css
 !media/spectra-extension.png

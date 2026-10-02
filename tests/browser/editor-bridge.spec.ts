@@ -3,11 +3,15 @@ import { initialEditorState, type EditorRequest, type EditorState } from '../../
 
 type TestHost = Window & { editorRequests: EditorRequest[] }
 
-const openEditorFrame = async (page: Page, trusted: boolean) => {
+const openEditorFrame = async (
+  page: Page,
+  trusted: boolean,
+  providers?: EditorState['providers'],
+) => {
   const state: EditorState = {
     ...initialEditorState,
     trusted,
-    providers: [
+    providers: providers ?? [
       { id: 'cursor', label: 'Cursor account', model: 'auto', configured: false },
       { id: 'openai', label: 'OpenAI', model: 'gpt-4.1', configured: false },
       {
@@ -186,6 +190,16 @@ const sendState = async (page: Page, state: EditorState) =>
     child.contentWindow?.postMessage({ type: 'state', state: next }, window.origin)
   }, state)
 
+const sendStatus = async (page: Page, providers: EditorState['providers']) =>
+  page.evaluate((info) => {
+    const child = document.querySelector('#spectra-frame')
+    if (!(child instanceof HTMLIFrameElement)) throw new Error('Editor frame is missing')
+    child.contentWindow?.postMessage(
+      { type: 'status', status: { providers: info, busy: false, activity: null, trusted: true } },
+      window.origin,
+    )
+  }, providers)
+
 const capturedState = (state: EditorState): EditorState => ({
   ...state,
   source: {
@@ -255,4 +269,72 @@ test('configuring an available API provider selects it instead of leaving Genera
   await expect(
     frame.getByRole('button', { name: 'Generate 3 directions', exact: true }),
   ).toBeEnabled()
+})
+
+for (const first of ['openai', 'anthropic'] as const) {
+  test(`${first}-first hosts use their provider order without requesting Cursor setup`, async ({
+    page,
+  }) => {
+    const providers: EditorState['providers'] = [
+      { id: 'openai', label: 'OpenAI', model: 'gpt-4.1', configured: false },
+      {
+        id: 'anthropic',
+        label: 'Anthropic / Claude',
+        model: 'claude-sonnet-4-20250514',
+        configured: false,
+      },
+      { id: 'cursor', label: 'Cursor account', model: 'auto', configured: false },
+    ]
+    const ordered = first === 'anthropic' ? [providers[1], providers[0], providers[2]] : providers
+    const { frame, state } = await openEditorFrame(page, true, ordered)
+    await sendState(page, capturedState(state))
+    await expect(frame.locator('#engine')).toHaveValue(first)
+    expect(
+      await frame
+        .locator('#engine option')
+        .evaluateAll((items) => items.map((item) => item.getAttribute('value'))),
+    ).toEqual(ordered.map((item) => item.id))
+    await expect(frame.locator('#engine-help')).toContainText('Add a key')
+    await expect(frame.getByRole('button', { name: 'Check Cursor', exact: true })).toHaveCount(0)
+    await frame.getByRole('button', { name: 'AI providers', exact: true }).first().click()
+    await expect(frame.locator('.provider-row h3')).toHaveText(ordered.map((item) => item.label))
+    await expect(frame.getByRole('dialog')).toContainText('optional Cursor CLI')
+    await frame.getByRole('button', { name: 'Close AI providers' }).click()
+    await frame.locator('#engine').selectOption('cursor')
+    await expect(frame.getByRole('button', { name: 'Check Cursor', exact: true })).toBeVisible()
+    await frame.getByRole('button', { name: 'Check Cursor', exact: true }).click()
+    await expect
+      .poll(() => page.evaluate(() => (window as TestHost).editorRequests.at(-1)))
+      .toMatchObject({ command: 'configureProvider', provider: 'cursor', action: 'check' })
+    await expect(frame.locator('#engine')).toHaveValue('cursor')
+  })
+}
+
+test('first configured provider wins and status changes preserve submitted and explicit choices', async ({
+  page,
+}) => {
+  const providers: EditorState['providers'] = [
+    { id: 'openai', label: 'OpenAI', model: 'gpt-4.1', configured: false },
+    { id: 'anthropic', label: 'Claude', model: 'claude-test', configured: true },
+    { id: 'cursor', label: 'Cursor account', model: 'auto', configured: true },
+  ]
+  const { frame, state } = await openEditorFrame(page, true, providers)
+  await sendState(page, capturedState(state))
+  await expect(frame.locator('#engine')).toHaveValue('anthropic')
+  await expect(frame.getByRole('button', { name: 'Generate 3 directions' })).toBeEnabled()
+  await frame.getByRole('button', { name: 'Generate 3 directions' }).click()
+  await expect
+    .poll(() => page.evaluate(() => (window as TestHost).editorRequests.at(-1)))
+    .toMatchObject({ command: 'generate', provider: 'anthropic' })
+  await sendStatus(
+    page,
+    providers.map((provider) => ({ ...provider, configured: true })),
+  )
+  await expect(frame.locator('#engine')).toHaveValue('anthropic')
+  await frame.locator('#engine').selectOption('openai')
+  await frame.locator('#intent').fill('Keep my chosen provider and instruction')
+  await sendStatus(page, providers)
+  await expect(frame.locator('#engine')).toHaveValue('openai')
+  await expect(frame.locator('#intent')).toHaveValue('Keep my chosen provider and instruction')
+  await expect(frame.getByRole('button', { name: 'Generate 3 directions' })).toBeDisabled()
 })

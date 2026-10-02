@@ -40,15 +40,16 @@ export const ComparisonCanvas = () => {
             <Columns3 size={15} />
             Compare
           </button>
-          <button
-            disabled={!selected}
-            className={view === 'ship' ? 'active' : ''}
-            aria-pressed={view === 'ship'}
-            onClick={() => setView('ship')}
-          >
-            <Check size={15} />
-            Selected{selected && ` · ${directionLabel(selected, variants.indexOf(selected))}`}
-          </button>
+          {selected && (
+            <button
+              className={view === 'ship' ? 'active' : ''}
+              aria-pressed={view === 'ship'}
+              onClick={() => setView('ship')}
+            >
+              <Check size={15} />
+              Selected{selected && ` · ${directionLabel(selected, variants.indexOf(selected))}`}
+            </button>
+          )}
         </div>
         <div className="canvas-controls">
           <details className="preview-settings">
@@ -135,7 +136,7 @@ export const ComparisonCanvas = () => {
         </div>
       )}
       <section
-        className={`comparison-grid ${view === 'ship' ? 'chosen-grid' : ''} ${showOriginal ? 'show-original' : ''}`}
+        className={`comparison-grid ${view === 'ship' ? 'chosen-grid' : ''} ${showOriginal || !variants.length ? 'show-original' : ''}`}
         style={
           previewSettings.width === 'fit'
             ? undefined

@@ -29,10 +29,10 @@ export const ProviderControl = ({ id = 'engine' }: { id?: string }) => {
           }}
           aria-describedby={`${id}-help`}
         >
-          {(['cursor', 'openai', 'anthropic'] as const).map((value) => (
-            <option key={value} value={value}>
-              {value === 'cursor' ? 'Cursor account' : value === 'openai' ? 'OpenAI' : 'Claude'}
-              {providers.find((item) => item.id === value)?.configured ? '' : ' · setup needed'}
+          {providers.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.label}
+              {item.configured ? '' : ' · setup needed'}
             </option>
           ))}
           {baselineKind === 'sample' && <option value="demo">Curated demo</option>}

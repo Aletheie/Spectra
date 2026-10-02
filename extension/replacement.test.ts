@@ -15,10 +15,12 @@ const revised = source.replace(
 
 test('React replacement keeps the whole-file API and normalizes line endings without executing code', () => {
   const current = source.replace(/\n/g, '\r\n')
-  const result = prepareReplacement(current, replacementSnapshot(current, 0, current.length), {
-    language: 'tsx',
-    code: revised,
-  })
+  const result = prepareReplacement(
+    current,
+    replacementSnapshot(current, 0, current.length),
+    { language: 'tsx', code: revised },
+    validateReactReplacement,
+  )
   assert.equal(result.document, revised.replace(/\n/g, '\r\n'))
   assert.equal(result.snapshot.endOffset, result.document.length)
   assert.match(result.document, /onClick=\{onSave\}/)
@@ -31,14 +33,25 @@ test('selected JSX replacement preserves all surrounding text, Unicode and subse
   const end = current.indexOf('</button>') + '</button>'.length
   const snapshot = replacementSnapshot(current, start, end)
   const code = '<button className="px-4 py-2">{label}</button>'
-  const first = prepareReplacement(current, snapshot, { language: 'tsx', code })
+  const first = prepareReplacement(
+    current,
+    snapshot,
+    { language: 'tsx', code },
+    validateReactReplacement,
+  )
   assert.equal(first.document, current.slice(0, start) + code + current.slice(end))
   const next = '<button className="p-6">{label}</button>'
-  const second = prepareReplacement(first.document, first.snapshot, { language: 'tsx', code: next })
+  const second = prepareReplacement(
+    first.document,
+    first.snapshot,
+    { language: 'tsx', code: next },
+    validateReactReplacement,
+  )
   assert.equal(second.document, current.slice(0, start) + next + current.slice(end))
   for (const changed of [current + '\n// user edit', current.replace('label', 'title')])
     assert.throws(
-      () => prepareReplacement(changed, snapshot, { language: 'tsx', code }),
+      () =>
+        prepareReplacement(changed, snapshot, { language: 'tsx', code }, validateReactReplacement),
       /source changed/,
     )
 })

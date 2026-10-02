@@ -10,10 +10,19 @@ An unchecked item means it still needs testing.
 - [ ] `npm run check` succeeds (lint, format check, tests, TypeScript and production build).
 - [ ] `npm run test:browser` succeeds with Playwright Chromium available. These tests cover the
       browser harness and simulated host only, not native editor or live provider behavior.
-- [ ] `dist/extension.cjs`, `dist/webview/index.js` and `dist/webview/index.css` exist after building.
+- [ ] `dist/extension.cjs`, `dist/react-validation.cjs`, `dist/preview-base.css`, `dist/webview/index.js` and `dist/webview/index.css`
+      exist after building and are included in the VSIX.
 - [ ] `npm run package` creates a local VSIX with the built assets. Inspect its contents for secrets
       or unintended source fixtures before installation.
-- [ ] Install with **Extensions: Install from VSIX…** in Cursor and reload if prompted.
+- [ ] Install with **Extensions: Install from VSIX…** in the target editor and reload if prompted.
+- [ ] After building, run `npm run test:native -- --editor /absolute/path/to/editor/executable` for
+      each target desktop editor. Record app/API versions and actual results; this uses temporary
+      profiles and fixtures, not the normal workspace or live AI credentials.
+- [ ] In VS Code/a compatible fork, OpenAI and Anthropic appear before optional Cursor CLI. No CLI
+      probe or login is required for capture, direct generation or exports. A configured provider
+      is selected automatically; deliberate selections survive later provider readiness changes.
+- [ ] Test Antigravity IDE separately from the standalone Antigravity desktop agent app; do not
+      infer VSIX support from the product name. See [compatibility](EDITOR_COMPATIBILITY.md).
 - [ ] The package identifies itself as `spectra-local.spectra` with display name Spectra. When replacing
       a differently named build, disable the old extension and reconfigure custom settings/API keys;
       previous extension settings and secrets are not automatically migrated.
@@ -23,7 +32,7 @@ An unchecked item means it still needs testing.
 - [ ] In a trusted workspace, Use editor selection and Add key are enabled after opening the panel.
       Check the installed extension too: Cursor hides window.parent before loading the UI.
 
-## Capture source in Cursor
+## Capture source in the target editor
 
 - [ ] Trust a suitable test workspace, open a supported component, select source and run
       **Spectra: Explore Component** from the palette or editor context menu.
@@ -50,6 +59,9 @@ An unchecked item means it still needs testing.
       supported account model if necessary. Direct API keys are separate from Cursor CLI login.
 - [ ] Before each live generate/refine/remix, a native consent dialog names vendor/model and exact
       categories of context sent. Cancellation makes no provider call and recovers the controls.
+- [ ] Consent discloses 4/3/1 requests for first comparison/regeneration/revision, repeated context
+      and usage implications. At most two run at once. Actual completion counts advance only after
+      each preview has its styles prepared; a failed task cancels other work and preserves the canvas.
 - [ ] The presenter understands what source is sent and which account pays for API requests.
 
 ## Connect and use Cursor CLI
@@ -59,7 +71,8 @@ An unchecked item means it still needs testing.
 - [ ] AI providers → Cursor account → Sign in to Cursor opens native CLI browser login in the dedicated
       Spectra configuration. CLI credential storage may be shared with other CLI sessions. No password
       or token is entered into the webview or copied by the extension.
-- [ ] Opening the panel detects an existing CLI login. After browser sign-in, returning to Cursor
+- [ ] In Cursor or after opting into CLI checks, opening the panel detects an existing CLI login.
+      After browser sign-in, returning to the editor
       updates readiness without another setup step. With a captured component and valid instruction,
       Generate 3 directions becomes available. Source, instruction, and previews remain unchanged.
 - [ ] Finish browser login after returning focus early: bounded polling or closing the login terminal
@@ -98,7 +111,7 @@ An unchecked item means it still needs testing.
 3. Confirm transmission. Explain that Original is an **AI reconstruction** of the captured source.
 4. Compare Original | A | B | C and explain the meaningful difference in each design hypothesis.
 5. Choose a direction, refine its exact implementation, and inspect the new chosen revision.
-6. Copy for Cursor; inspect the clipboard brief, then paste it manually into Cursor when ready.
+6. Copy brief; inspect the clipboard content, then paste it manually into the editor's AI chat when ready.
 7. Save HTML through the native dialog and review its code before opening it outside isolation.
 
 - [ ] Verify at least one successful initial request with each supported vendor. Record model IDs.
@@ -113,7 +126,7 @@ An unchecked item means it still needs testing.
       the existing revisions until regeneration succeeds.
 - [ ] Source/output product facts remain intact; illustrative proof is visibly labeled.
 
-## Copy for Cursor and Save HTML
+## Copy brief and Save HTML
 
 - [ ] Clipboard brief includes exact snapshot, file/range, intent, chosen hypothesis, changes and
       selected HTML/CSS/JS, including the latest refinement rather than stale code.
@@ -122,6 +135,9 @@ An unchecked item means it still needs testing.
 - [ ] Native save dialog writes the exact selected version to the chosen location only; cancellation
       writes nothing. Errors do not lose the selection. Review the output before opening it.
 - [ ] Saved HTML is self-contained and does not require React, Tailwind or a build step.
+- [ ] Generate literal Tailwind classes in preview HTML: colors, spacing, breakpoints and interactive
+      states work without network access. Inspection and export include the compiled styles.
+      Missing project tokens/external CSS produce an actionable error, preserving previous results.
 - [ ] Closing/reopening the panel clears its in-memory session without deleting saved files or keys.
 
 ## React code and confirmed replacement
@@ -192,6 +208,12 @@ Use **Spectra: Open Curated Sample** explicitly; demo mode is not available for 
 - [ ] Broken preview JavaScript offers an advisory diagnostic, Inspect code and Reset. Empty content
       has an explanation; plain text and temporarily hidden frames do not produce false empty notices.
 - [ ] A large retained session uses small status deltas; typing and switching views preserve frames.
+- [ ] After a full host refresh, send repeated status updates; drafts and iframe interaction state
+      survive. A changed implementation still reaches its preview.
+- [ ] A large session initially mounts only visible/nearby previews. Reveal a distant revision;
+      its preview loads, and previously visited frames keep their form/billing state.
+- [ ] The captured-source entry shows source, instruction and provider before a comparison exists.
+      Options reveals constraints/suggestions; active constraints remain visible in its summary.
 
 ## Check different component types
 
@@ -236,3 +258,78 @@ both production builds in an isolated checkout using the installed dependencies.
 tests passed using the same code with a temporary Playwright configuration on port 5197 because
 5199 was occupied. Editor and provider tests use mocks. No F5 rehearsal, native replacement,
 clipboard, live provider call or new package installation was performed in this commit session.
+
+2026-10-02, local 1.0.1 working tree, macOS arm64 / Node 22.13.0:
+
+- `npm install` completed; `npm run check` passed lint, formatting, all 85 automated tests,
+  TypeScript and both production builds. Provider/editor coverage uses mocks and bounded local
+  subprocess fixtures, not live vendor accounts.
+- `npm run test:browser` passed all 22 Chromium tests. Confirmed compiled Tailwind colors,
+  spacing and local interactions under inherited CSP and in standalone export; no network requests
+  in that fixture. Confirmed progress/cancellation, draft preservation, lazy previews, reviewed
+  replacement command routing, responsive layouts and the opaque-origin bridge boundary.
+- In the 15-direction fixture at 1440 × 900, 5 of 16 previews initially mounted; revealing the
+  final revision loaded it without disconnecting visited frames. Typing 48 characters took 117 ms
+  in this run. This is a local diagnostic, not a cross-machine benchmark or a live-AI speed claim.
+- Inspected wide comparison and narrow selected-view screenshots. `npm run package` produced
+  `spectra-1.0.1.vsix`; inspected its 24-file archive for required assets, excluded test/source/config
+  paths and common API-key patterns. The bundled `dist/preview-base.css` is included.
+- Not performed: native Cursor/F5 rehearsal, installation, real clipboard/replacement, live provider
+  generation or a vendor latency comparison. Next check: install the VSIX, capture a small TSX
+  component, confirm the four-request disclosure, generate with the configured model, then cancel
+  another comparison and confirm that the first result remains usable. Verify actual CLI parallel
+  operation, tool denials and account usage before claiming a live speed improvement.
+
+2026-10-02, local 1.0.2 working tree, macOS arm64 / Node 22.13.0:
+
+- `npm run check` passed lint, formatting, all 96 automated tests, TypeScript and both production
+  builds. New coverage checks cache bounds/failure recovery, exact per-revision authored content,
+  provider task contracts, deferred parser loading and full-state reconciliation. A bridge fixture
+  sends 100 status deltas after a full refresh and reads retained HTML zero times.
+- `npm run test:browser` passed all 23 Chromium tests, including full-refresh/status bursts that
+  preserve drafts and billing state, then correctly render updated code. These use curated data
+  or simulated editor messages, not native Cursor or live AI.
+- Compared with the 1.0.1 VSIX, the main activation bundle fell from 10,359,474 to 488,273 bytes
+  (95.29%). The separate 9,869,660-byte React validator loads for reviewed replacement. This measures
+  bundle loading scope, not native startup latency or a reduction in total installed size.
+- Initial four-task system instructions are 30.7% shorter for HTML and 16.3% for React in characters;
+  source snapshots and stored implementations are unchanged. No extra live requests were added.
+- In a local diagnostic of 50 revisions with identical classes and different authored content,
+  fresh styler instances compiled 50 times in 102 ms; a reused panel styler compiled once in 2 ms.
+  This fixture isolates repeated utility compilation, not generation or end-to-end latency.
+- `npm run package` produced `spectra-1.0.2.vsix`. Its 25-entry archive includes the separate
+  validator, trusted style preset, matching webview assets and version. A smoke check of extracted
+  bundles loads the main module without the parser, then imports the parser and verifies export
+  guards. This stubs the VS Code API and does not exercise native activation.
+- Not performed: native Cursor/F5, installation, actual replacement/clipboard or live provider
+  generation. Next check: install 1.0.2, reopen Spectra, generate and refine a captured TSX component,
+  then review and confirm replacement to exercise deferred parser loading and Undo. Measure the
+  same component/model before and after to establish actual startup/generation latency.
+
+2026-10-02, local 1.0.3 working tree, macOS arm64 / Node 22.13.0:
+
+- `npm run check` passed lint, formatting, all 99 automated tests, TypeScript and both builds.
+  Host fixtures cover direct generation/export with no Cursor CLI in simulated VS Code, Antigravity
+  IDE, VSCodium and Windsurf; optional CLI setup and sign-out survive configuration changes.
+- `npm run test:browser` passed all 27 Chromium tests. New checks cover host-ordered/ready provider
+  defaults, preserving submitted and deliberate choices, and an interactive Original sample in a
+  360px panel before generation. These are simulated host/browser checks, not live vendor calls.
+- `npm run test:native -- --editor '/Applications/Visual Studio Code.app/Contents/MacOS/Code'`
+  passed against VS Code 1.140.0. Actual extension activation/public commands, local styles/scripts,
+  sample iframe interaction under editor CSP, curated generation/Choose and the exact unsaved TSX
+  selection all passed. The fixture's disk contents were unchanged. Reports/screenshots:
+  `dist/native-test-results/native-code-1790942518017/` (ignored and excluded from the VSIX).
+- Cursor 3.22.12 / VS Code API 1.128.0 initially passed activation/assets/empty-panel checks and
+  exposed two narrow Original-preview defects, now fixed and covered by browser regression tests.
+  Its built-in services use home paths outside a temporary profile. Added a macOS sandbox guard
+  for those paths; the final guarded run could not start Chromium's nested sandbox. Kept the guard
+  and did not retry without Chromium's sandbox. Cursor's complete native flow remains unverified.
+- Native tests use temporary profiles/workspaces, in-memory secrets and a nonexistent CLI path;
+  no Spectra live provider/CLI account calls were made. The runner disables workspace trust only
+  in its fixture profile, so restricted-mode checks remain unit/mock coverage. Native replacement,
+  clipboard, save dialogs, keychain persistence and installed-VSIX behavior were not tested here.
+- Antigravity desktop 2.8.1 is installed, but is distinct from Antigravity IDE; no IDE runtime was
+  available. Other forks were not launched. See [editor compatibility](EDITOR_COMPATIBILITY.md).
+- Next check: install the local VSIX in the target editor, configure a direct provider there and
+  rehearse one small live comparison plus reviewed replacement/Undo. For an Antigravity IDE build,
+  first confirm local VSIX support and record its underlying VS Code API version.

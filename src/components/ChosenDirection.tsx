@@ -50,18 +50,18 @@ export const ChosenDirection = () => {
           onClick={() => void perform({ command: 'copyHandoff', variantId: selected.id })}
         >
           <Copy size={14} />
-          Copy for Cursor
+          Copy brief
         </button>
         <ReactActions variant={selected} />
       </div>
       <p className="help-text">
         {!isEditor
-          ? 'Browser harness: sample download only. Copy for Cursor requires the extension.'
+          ? 'Browser harness: sample download only. Copy brief requires the extension.'
           : !trusted
             ? 'Trust this workspace to copy or save.'
             : selected.react
               ? 'React + Tailwind · Replace opens a diff and asks before editing the captured range. Unsaved changes are protected; the edit supports Undo. Tailwind must already be configured in your project. The HTML preview approximates the React code.'
-              : 'Copy a brief, then paste it into Cursor. Review the resulting diff.'}{' '}
+              : 'Copy a brief, then paste it into your editor’s AI chat. Review the resulting diff.'}{' '}
         Exported HTML runs outside the preview sandbox; review it before opening.
       </p>
       {errors.export && (

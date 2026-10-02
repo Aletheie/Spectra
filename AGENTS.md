@@ -2,12 +2,13 @@
 
 ## Product
 
-Spectra is a Cursor extension built with the standard VS Code extension API. The user approved
+Spectra is a VS Code extension for desktop VS Code, Cursor and compatible editor forks, built with
+the standard VS Code extension API. The user approved independent use outside Cursor and
 replacing the earlier website. Do not restore Express, a localhost API, environment-file
 credentials, fake accounts or teams, or Orbit as the default source. Use Spectra as the product name.
 
 The core flow is: select a component → capture source → describe a change → compare three
-directions → refine or remix → choose → replace React, copy for Cursor or save HTML. Keep the workspace focused
+directions → refine or remix → choose → replace React, copy a brief or save HTML. Keep the workspace focused
 on comparing designs.
 
 The user authorized React + Tailwind output and explicit, reviewed replacement of the captured
@@ -36,7 +37,7 @@ component. This is a bounded native editor action, not permission for automatic 
 - React + TypeScript render the editor-native comparison workspace. Vite builds local
   `dist/webview/index.js` and CSS; esbuild bundles the extension host. No HTTP service is needed.
 - `src/domain/protocol.ts` defines the allowlisted webview/host protocol; `src/domain/handoff.ts`
-  assembles the manual Cursor handoff. Shared domain modules own variants, validation, and documents.
+  assembles the manual editor-AI handoff. Shared domain modules own variants, validation, and documents.
 - `src/variants.ts` and demo transformations are curated sample content only. Preserve them without
   making them the baseline for imported components.
 - `npm run dev` is **only a browser development harness**: show a Browser harness banner and explicit
@@ -61,15 +62,20 @@ component. This is a bounded native editor action, not permission for automatic 
    Compare ORIGINAL | A | B | C; show names, hypotheses, changes, independent previews, Choose, Refine.
 5. Refine one exact host-stored variant; remix exactly two. Resolve source IDs in the host, return
    one new result, and preserve earlier versions. Palette-only directions do not satisfy generation.
-6. Choose shows Original ↔ Selected. **Copy for Cursor** writes a handoff to the clipboard for manual
+6. Choose shows Original ↔ Selected. **Copy brief** writes a handoff to the clipboard for manual
    pasting; **Save HTML** uses a native save dialog. Neither automatically edits project files or
-   starts a Cursor agent/chat. Do not label this as automatic Apply.
+   starts an editor agent/chat. Do not label this as automatic Apply.
    **Copy React** copies exact project code. **Replace component…** explicitly opens a native diff,
    asks for confirmation, then edits only the captured TSX/JSX range with Undo. Recheck trust,
    canonical path and full document hash before editing; changed source requires recapture.
    Never explicitly save, install dependencies or alter configuration. Editor Auto Save still applies.
 7. Keep the last valid canvas and selection on errors, cancellation, or malformed output; prevent
    duplicate work and recover controls. Closing the panel ends its in-memory session.
+8. Use editor-neutral labels and standard VS Code APIs. Direct OpenAI/Anthropic work without Cursor
+   installed; list them first outside Cursor. Cursor CLI is optional and is probed automatically only
+   in Cursor or after explicit CLI configuration. Never inherit another editor's AI credentials.
+   Declare fork compatibility only to the extent actually tested; distinguish Antigravity IDE from
+   its standalone desktop agent app. See `docs/EDITOR_COMPATIBILITY.md`.
 
 ## Trust, secrets, and isolation
 
@@ -116,12 +122,14 @@ Documentation-only tasks do not authorize unrelated source changes. Update contr
 ### Checks
 
 - `npm install`, then `npm run build`: typecheck host/UI, build webview assets and host bundle.
-- Open the repository root in Cursor and use F5 / `.vscode/launch.json` to launch an Extension
+- Open the repository root in VS Code or a compatible editor and use F5 / `.vscode/launch.json` to launch an Extension
   Development Host. `npm run watch` watches bundles during extension development.
 - `npm run package`: build and create a local VSIX. Install manually with **Extensions: Install
   from VSIX…**. Packaging is not Marketplace publication; no publisher credentials are needed.
 - `npm run lint`, `npm test`, `npm run format:check`, and `npm run check` are available. Inspect
   `package.json` before running scripts.
+- `npm run test:native -- --editor /absolute/path/to/editor/executable` uses isolated temporary
+  profiles/workspaces to check a real desktop extension host and webview. It does not use live AI.
 - After code edits, run appropriate diagnostics/build/tests and rehearse affected checklist items.
   A browser-harness check does not verify the extension host, trust, secrets, provider calls, or VSIX.
   Never claim F5, live AI, packaging, or any check passed without performing it.

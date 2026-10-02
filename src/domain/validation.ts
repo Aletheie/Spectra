@@ -211,7 +211,18 @@ export const validEditorStatus = (status: unknown): status is EditorStatus => {
         'replaceComponent',
         'copyReact',
       ].includes(String(activity.command)) &&
-      (activity.phase === 'confirming' || activity.phase === 'running'))
+      (activity.phase === 'confirming' || activity.phase === 'running') &&
+      (activity.progress === undefined ||
+        (activity.phase === 'running' &&
+          ['generate', 'refine', 'remix'].includes(String(activity.command)) &&
+          isRecord(activity.progress) &&
+          onlyKeys(activity.progress, ['completed', 'total']) &&
+          Number.isSafeInteger(activity.progress.total) &&
+          Number(activity.progress.total) >= 1 &&
+          Number(activity.progress.total) <= 4 &&
+          Number.isSafeInteger(activity.progress.completed) &&
+          Number(activity.progress.completed) >= 0 &&
+          Number(activity.progress.completed) <= Number(activity.progress.total))))
   )
 }
 

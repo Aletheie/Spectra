@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { ReactImplementation } from '../src/domain/react'
-import { validateReactReplacement } from './react-validation'
+import type { validateReactReplacement } from './react-validation'
 
 export type ReplacementSnapshot = { documentHash: string; startOffset: number; endOffset: number }
 export const documentHash = (code: string) => createHash('sha256').update(code).digest('hex')
@@ -25,6 +25,7 @@ export const prepareReplacement = (
   current: string,
   snapshot: ReplacementSnapshot,
   implementation: ReactImplementation,
+  validate: typeof validateReactReplacement,
 ) => {
   if (documentHash(current) !== snapshot.documentHash)
     throw new Error(
@@ -34,7 +35,7 @@ export const prepareReplacement = (
     ? implementation.code.replace(/\r?\n/g, '\r\n')
     : implementation.code.replace(/\r\n/g, '\n')
   const next = current.slice(0, snapshot.startOffset) + code + current.slice(snapshot.endOffset)
-  validateReactReplacement(current, next, implementation.language)
+  validate(current, next, implementation.language)
   return {
     code,
     document: next,

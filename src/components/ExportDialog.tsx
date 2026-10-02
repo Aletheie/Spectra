@@ -37,7 +37,7 @@ export const ExportDialog = () => {
         <p>
           {selected.react
             ? 'React + Tailwind is the project code. HTML/CSS/JS form a separate visual approximation for comparison.'
-            : 'Inspect the chosen implementation. Copy its context for Cursor or save a standalone HTML file.'}
+            : 'Inspect the chosen implementation. Copy a brief for your editor’s AI chat or save a standalone HTML file.'}
         </p>
         <div className="code-tabs" aria-label="Implementation language">
           {tabs.map((item) => (
@@ -79,7 +79,7 @@ export const ExportDialog = () => {
             onClick={() => void perform({ command: 'copyHandoff', variantId: selected.id })}
           >
             <Copy size={14} />
-            Copy for Cursor
+            Copy brief
           </button>
           <ReactActions variant={selected} />
         </div>

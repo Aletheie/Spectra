@@ -405,28 +405,6 @@ input[type='checkbox'] {
 .prompt-heading > label {
   display: block;
 }
-.prompt-summary {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--line);
-  font-size: 12px;
-}
-.prompt-summary > span {
-  color: var(--muted);
-  flex-shrink: 0;
-}
-.prompt-summary p {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.prompt-summary button {
-  flex-shrink: 0;
-}
 .prompt-suggestion {
   display: flex;
   flex-wrap: wrap;
@@ -697,6 +675,15 @@ kbd {
 }
 .preview-frame {
   min-width: 0;
+  contain: layout style;
+}
+.preview-deferred {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 12px;
 }
 .preview {
   border-block: 1px solid var(--line);
@@ -1244,17 +1231,45 @@ kbd {
   }
 }
 
-.prompt-fields {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.85fr);
-  gap: 24px;
+.generate-action {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-left: auto;
 }
-.prompt-fields .prompt-row {
-  flex-direction: column;
+.generate-action .primary {
+  min-height: 32px;
 }
-.prompt-fields .prompt-row textarea {
-  flex: 1;
-  min-height: 100px;
+.prompt-options {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+.prompt-options > summary {
+  padding-block: 10px;
+  cursor: pointer;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.prompt-options .design-constraints {
+  max-width: 680px;
+}
+.prompt-options .prompt-suggestion {
+  padding-top: 8px;
+}
+.activity-row progress {
+  accent-color: var(--accent);
+  width: 100px;
+  height: 6px;
+}
+.elapsed-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--muted);
+}
+.activity-row > button {
+  margin-left: auto;
 }
 .design-constraints {
   min-width: 0;
@@ -1563,7 +1578,7 @@ body.vscode-high-contrast-light button {
     display: none;
   }
   .comparison-grid.show-original .original-card {
-    display: flex;
+    display: block;
   }
   .comparison-grid.show-original .variant-card:not(.original-card) {
     display: none;
@@ -1594,13 +1609,6 @@ body.vscode-high-contrast-light button {
   }
 }
 @media (max-width: 800px) {
-  .prompt-fields {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-  }
-  .prompt-summary {
-    flex-wrap: wrap;
-  }
   .constraints-summary {
     max-width: 100%;
     flex-shrink: 1;

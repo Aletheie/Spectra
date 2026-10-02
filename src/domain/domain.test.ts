@@ -20,7 +20,7 @@ test('preview documents isolate generated code while exports remain standalone',
   assert.doesNotMatch(documentFor(original, true, '" onload="bad'), /nonce=/)
 })
 
-test('Cursor handoff contains the exact chosen implementation and snapshot limitations', () => {
+test('editor-neutral brief contains the exact chosen implementation and snapshot limitations', () => {
   const source = {
     id: 'snapshot-1',
     relativePath: 'src/Card.tsx',
@@ -40,7 +40,9 @@ test('Cursor handoff contains the exact chosen implementation and snapshot limit
   assert.match(handoff, /Make the action clearer/)
   assert.match(handoff, /````javascript/)
   assert.match(handoff, /AI reconstruction, not the running component/)
-  assert.match(handoff, /does not apply any edits/)
+  assert.match(handoff, /Paste this brief manually into your editor’s AI chat/)
+  assert.match(handoff, /does not open a chat, run an agent or apply any edits/)
+  assert.doesNotMatch(handoff, /Cursor/)
   assert.match(handoff, /outside iframe isolation/)
   assert.match(createHandoff(null, 'Sample', selected), /curated Orbit sample/)
 })

@@ -29,29 +29,24 @@ export const SettingsDialog = () => {
           </button>
         </div>
         <p>
-          Use your Cursor account through Cursor CLI, or your own OpenAI / Anthropic API key. Cursor
-          usage follows your account limits and billing. Direct API calls are billed separately.
+          Use your own OpenAI or Anthropic API key, or connect the optional Cursor CLI provider.
+          Direct API calls are billed separately. Cursor CLI usage follows your Cursor account
+          limits and billing.
         </p>
-        {(['cursor', 'openai', 'anthropic'] as const).map((id) => {
-          const provider = providers.find((item) => item.id === id)
+        {providers.map((provider) => {
+          const { id } = provider
           return (
             <div className="provider-row" key={id}>
               <div>
-                <h3>
-                  {id === 'cursor'
-                    ? 'Cursor account'
-                    : id === 'openai'
-                      ? 'OpenAI'
-                      : 'Anthropic / Claude'}
-                </h3>
-                <p>{provider?.model ?? 'Configure in Cursor'}</p>
+                <h3>{provider.label}</h3>
+                <p>{provider.model}</p>
                 <span className="provider-status">
-                  {provider?.detail ||
+                  {provider.detail ||
                     (id === 'cursor'
-                      ? provider?.configured
+                      ? provider.configured
                         ? 'CLI login detected · Model access not checked'
                         : 'Check CLI login or sign in'
-                      : provider?.configured
+                      : provider.configured
                         ? 'Key saved · Not a connectivity check'
                         : 'No API key saved')}
                 </span>
@@ -63,7 +58,7 @@ export const SettingsDialog = () => {
                 <KeyRound size={14} />
                 {id === 'cursor'
                   ? 'Connect / check'
-                  : provider?.configured
+                  : provider.configured
                     ? 'Manage key'
                     : 'Add key'}
               </button>
@@ -79,10 +74,10 @@ export const SettingsDialog = () => {
         <div className="settings-note">
           <strong>Sign-in stays outside this panel.</strong>
           <p>
-            Cursor CLI uses its own account login and separate Spectra configuration. Install the
-            CLI first, then check the connection or sign in with your Cursor account. Direct
-            provider keys use a native password prompt and SecretStorage. Change model IDs in Cursor
-            settings; spectra.cursorModel defaults to auto. No credentials enter this panel.
+            Direct provider keys use a native password prompt and your editor’s SecretStorage.
+            Change model IDs in the editor settings. The optional Cursor CLI provider needs a
+            separate CLI installation and account login; spectra.cursorModel defaults to auto. No
+            credentials enter this panel.
           </p>
         </div>
         {!isEditor && (
@@ -94,8 +89,8 @@ export const SettingsDialog = () => {
           <p className="help-text">Provider setup requires a trusted workspace.</p>
         )}
         <p className="help-text">
-          Cursor CLI generates previews from the captured snapshot. It does not inherit your editor
-          chat history or selected model. Copy for Cursor remains a manual handoff.
+          Providers use the captured snapshot, not your editor chat history or selected chat model.
+          Copy brief copies context for manual pasting into your editor’s AI chat.
         </p>
       </section>
     </Dialog>

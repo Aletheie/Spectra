@@ -12,7 +12,8 @@ import { SettingsDialog } from './components/SettingsDialog'
 import { SpectraMark } from './components/SpectraMark'
 
 const Workspace = () => {
-  const { error, setError, toast, isEditor, baselineKind, source } = useWorkspace()
+  const { error, setError, toast, isEditor, baselineKind, source, original, generating } =
+    useWorkspace()
   return (
     <main className="workbench">
       <Topbar />
@@ -20,8 +21,8 @@ const Workspace = () => {
         <div className="harness-notice">
           <strong>Browser harness</strong>
           <span>
-            Curated samples only. Open the extension in Cursor to use your component and AI
-            providers.
+            Curated samples only. Open the installed extension in your editor to use your component
+            and AI providers.
           </span>
         </div>
       )}
@@ -43,7 +44,7 @@ const Workspace = () => {
           </button>
         </div>
       )}
-      {(source || baselineKind === 'sample') && <ComparisonCanvas />}
+      {(original || generating) && <ComparisonCanvas />}
       <footer className="workspace-footer">
         <span>
           <SpectraMark size={16} />

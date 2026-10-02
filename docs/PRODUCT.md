@@ -1,6 +1,7 @@
 # Spectra: product behavior
 
-Spectra helps a developer try different designs for an existing component inside Cursor.
+Spectra helps a developer try different designs for an existing component inside desktop VS Code,
+Cursor or a compatible editor with a Node extension host.
 The main workspace compares the original with three directions. From there, the developer can
 refine one, combine two, and take the selected result back to their project.
 
@@ -36,7 +37,10 @@ Cursor CLI may also retain its own conversation history.
 ## Generate a comparison
 
 The first live request for custom source returns an **AI reconstruction** of the original and
-exactly three alternatives in one validated response. This applies to HTML too. The original
+exactly three alternatives in one atomic update. The host schedules four focused requests (Original,
+A, B and C), at most two at once, with a shared deadline. Later comparisons request only A/B/C;
+refine and remix each use one request. The native confirmation discloses the request count and
+repeated context; separate requests can increase input usage and cost. This applies to HTML too. The original
 approximates the captured code; it is not a screenshot or the running component. Imports, assets,
 application state, providers, and CSS context may be missing. CSS-only input has no associated markup.
 
@@ -46,6 +50,18 @@ captured component, or install its dependencies in the panel.
 Keep the reconstructed original fixed for that source session. Regeneration replaces the three
 directions only after success. Refine and remix add revisions. Capturing new source starts a new
 baseline; changing the provider or model does not.
+
+Preview HTML may use static Tailwind utilities. Spectra prepares their CSS locally using its bundled
+preset before accepting results; authored CSS overrides that preset. No project configuration,
+imports or plugins are loaded, and React remains text. The same prepared CSS is used in preview,
+inspection, handoff and exported HTML. External stylesheet/compiler dependencies, missing project
+tokens and unresolved CSS variables without fallbacks fail the whole comparison with an actionable
+error. These checks catch common unstyled output, not every visual or semantic defect.
+
+Reuse compiled utilities for identical static class sets within a panel, with a bounded memory
+cache. Each result retains its own authored code and passes style validation, including cache hits.
+Provider instructions include only the active task and output format; captured source and exact
+prior implementations remain complete. This does not increase the number of live requests.
 
 Instructions must be nonblank and at most 3,000 characters. Offer a starting instruction appropriate
 to the captured component and support Cmd/Ctrl+Enter to generate.
@@ -58,6 +74,10 @@ Provider/status updates preserve drafts. The shared provider prompt preserves th
 known theme and transparency and never adds a surrounding page or white card to a small control
 without a source or instruction reason. CSS-only demonstrations must be visibly illustrative.
 
+Keep the initial form focused on the instruction, provider and Generate. Constraints and focus
+suggestions live under Options; the summary shows active constraints. Do not show an empty
+comparison grid for a captured component until generation starts.
+
 ## Providers
 
 | Engine             | Connection                             | Default model              |
@@ -67,10 +87,17 @@ without a source or instruction reason. CSS-only demonstrations must be visibly 
 | Anthropic / Claude | Direct API with a key in SecretStorage | `claude-sonnet-4-20250514` |
 | Curated demo       | Prepared Orbit sample and preset edits | None                       |
 
-Cursor account is the default engine for custom source. Its setup provides sign-in, a connection
-check, model listing, sign-out, and installation instructions. The connection check detects a CLI
-login; model access and quota are checked during generation. In a trusted workspace, detect an
-existing login when the panel opens and after returning to Cursor, until login is detected.
+The host orders providers: Cursor account first in Cursor, OpenAI then Anthropic in other editors.
+Select the first configured provider, or the first in that order if setup is still needed. Preserve
+deliberate provider choices through background status updates. Direct APIs require no Cursor
+installation or login; configure keys separately in each editor profile. No built-in editor AI
+subscription or chat credentials are inherited. Cursor CLI remains available as an optional provider.
+
+Cursor setup provides sign-in, a connection check, model listing, sign-out, and installation
+instructions. The connection check detects a CLI login; model access and quota are checked during
+generation. In Cursor, detect an existing login when a trusted panel opens and on focus. Other
+editors do not probe Cursor CLI unless the user configures its executable or explicitly checks/signs
+in during the session. After opt-in, keep detecting login until ready; signing out stops detection.
 Keep Check Cursor and Sign in to Cursor CLI beside a blocked generation control, with the
 actual checking/signed-out/error state. After starting login, detect completion even if browser
 focus returns before credentials are saved; poll for at most three minutes and observe terminal
@@ -148,13 +175,15 @@ before refining or remixing again. Never silently discard older revisions.
 ## Choose and export
 
 Choosing a direction opens **Original ↔ Selected**, including the selected rationale and changes.
-The comparison iframes stay mounted so local form/billing state survives Choose and return to
+Previews load when first near the visible viewport, rather than starting every retained revision.
+Once loaded, the comparison iframes stay mounted so local form/billing state survives Choose and return to
 Compare. Expanded inspection is a separate preview and explicitly starts with fresh interaction
 state. Reset intentionally reloads a preview; exports contain the implementation, not runtime state.
 
-- **Copy for Cursor** writes a brief to the clipboard with the snapshot, relative path and range,
+- **Copy brief** writes a brief to the clipboard with the snapshot, relative path and range,
   intent, selected rationale, exact HTML/CSS/JS and React code when present. The developer pastes
-  it into Cursor to review and adapt the result. Copying does not start an agent or change files.
+  it into their editor's AI chat to review and adapt the result. Copying does not start an agent or
+  change files. The protocol command remains `copyHandoff`.
 - TSX/JSX directions include React + Tailwind project code alongside the approximate HTML preview.
   **Copy React** copies that exact revision. **Replace component…** opens a native before/after
   diff and asks for confirmation before editing only the captured file or selection. It supports
@@ -198,11 +227,14 @@ requests automatically.
 Name the active operation and distinguish confirmation from execution. Copying, saving and provider
 setup must not say Generating. Scope errors to the operation that failed; normal cancellation is
 neutral. Status-only host updates omit source and implementations.
+Reconcile unchanged implementations once when receiving a validated full update. Subsequent status
+updates reuse them without rescanning retained code or disturbing drafts and preview interactions.
 
-Cursor generation has a ten-minute timeout so reconstructing the original and three complete
-directions is not cut off at 90 seconds. Its cancellable native notification shows elapsed waiting
-time, not an estimated percentage. The panel waits for the full generation budget plus three
-minutes for confirmation/transport. Direct API generation keeps its 90-second timeout.
+Cursor generation has a ten-minute shared timeout for the whole comparison, including queued tasks.
+The cancellable native notification and panel show elapsed time and the actual count of prepared
+previews, not an estimated percentage. Results enter the canvas together after validation; a failed
+task cancels its sibling and prevents queued requests. The panel waits for the full generation budget plus three
+minutes for confirmation/transport. Direct API generation keeps a shared 90-second timeout.
 Closing the panel aborts the request; a late result must not reopen it.
 
 The parent webview uses local nonce-protected scripts and blocks network access. Generated code
@@ -223,8 +255,16 @@ errors and status, reduced motion, and readable light, dark, and high-contrast e
 The extension host handles editor access, source snapshots, provider requests, secrets, session
 state, confirmations, clipboard access, and save dialogs. A React and TypeScript webview renders
 the comparison using editor theme tokens. Vite builds its local assets; esbuild bundles the host.
+Load the React syntax parser only when starting a reviewed component replacement. Keep the final
+document hash and syntax validation synchronous immediately before the editor edit.
 There is no HTTP service. `npm run dev` is a sample-only **Browser harness** with no editor access
 or live provider calls.
+
+Require a desktop Node extension host implementing the VS Code 1.96+ API and local workspace
+files. Use standard webview resource URIs/CSP and editor APIs; do not hardcode an editor URL scheme.
+Native VSIX support and compatible APIs determine fork support, not its name. See
+[editor compatibility](EDITOR_COMPATIBILITY.md) for evidence and unverified hosts. Antigravity's
+standalone desktop agent app is distinct from its IDE and is not a declared VSIX host.
 
 Keep the work focused on capture, comparison, refinement, reviewed React replacement and manual handoff. Dependency collection,
 rendered capture, unreviewed project edits, Marketplace publication, app accounts, databases, teams,

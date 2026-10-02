@@ -4,6 +4,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -42,7 +43,12 @@ const useWorkspaceController = () => {
   const [prompt, setPrompt] = useState(componentPrompt)
   const [constraints, setConstraints] = useState<DesignConstraints>(emptyConstraints)
   const [promptExpanded, setPromptExpanded] = useState(true)
-  const [engine, setEngine] = useState<Engine>('cursor')
+  const [engine, setEngineState] = useState<Engine>('openai')
+  const engineChosen = useRef(false)
+  const setEngine = useCallback((next: Engine) => {
+    engineChosen.current = true
+    setEngineState(next)
+  }, [])
   const [pending, setPending] = useState<EditorCommand['command'] | null>(null)
   const inFlight = useRef(false)
   const [view, setView] = useState<'compare' | 'ship'>('compare')
@@ -97,9 +103,9 @@ const useWorkspaceController = () => {
           ? ''
           : 'Curated presets require the sample component.'
         : !isEditor
-          ? 'Live generation is available in the Cursor extension. Select Curated demo to explore this sample.'
+          ? 'Live generation is available in the installed Spectra extension. Select Curated demo to explore this sample.'
           : !editor.trusted
-            ? 'Trust this workspace in Cursor to enable live generation.'
+            ? 'Trust this workspace in your editor to enable live generation.'
             : !provider?.configured
               ? provider?.detail ||
                 (engine === 'cursor'
@@ -121,14 +127,35 @@ const useWorkspaceController = () => {
   useEffect(() => {
     const unsubscribe = subscribeEditor((next) => {
       const previous = editorRef.current
+      editorRef.current = next
+      setEditor(next)
+      const sampleChanged =
+        (previous.baselineKind === 'sample') !== (next.baselineKind === 'sample')
+      if (sampleChanged) engineChosen.current = false
+      if (!engineChosen.current) {
+        setEngineState(
+          next.baselineKind === 'sample'
+            ? 'demo'
+            : (next.providers.find((item) => item.configured)?.id ??
+                next.providers[0]?.id ??
+                'openai'),
+        )
+      }
+      // The bridge reconciles full updates once. Status deltas need no source,
+      // implementation or selection work, even after retaining many revisions.
+      if (
+        previous.source === next.source &&
+        previous.original === next.original &&
+        previous.variants === next.variants &&
+        previous.constraints === next.constraints &&
+        previous.baselineKind === next.baselineKind
+      )
+        return
       const contextChanged =
         previous.source?.id !== next.source?.id ||
         (next.baselineKind === 'sample' && previous.baselineKind !== 'sample') ||
         (next.variants.length === 0 && previous.variants.length > 0 && !next.busy)
-      if (
-        contextChanged ||
-        JSON.stringify(previous.constraints) !== JSON.stringify(next.constraints)
-      ) {
+      if (contextChanged || previous.constraints !== next.constraints) {
         setConstraints(next.constraints)
       }
       if (contextChanged) {
@@ -141,14 +168,6 @@ const useWorkspaceController = () => {
           ...current,
           height: kind === 'control' || kind === 'navigation' ? 240 : 560,
         }))
-        setEngine((current) =>
-          !next.source
-            ? 'demo'
-            : current !== 'demo' &&
-                next.providers.some((item) => item.id === current && item.configured)
-              ? current
-              : (next.providers.find((item) => item.configured)?.id ?? 'cursor'),
-        )
         setSelectedId(null)
         setActiveId(null)
         setRemixIds([])
@@ -170,39 +189,7 @@ const useWorkspaceController = () => {
         exists(current) || next.original?.id === current ? current : null,
       )
       setOperationState((current) => (current?.sourceIds.every(exists) ? current : null))
-      setRemixIds((current) => current.filter(exists))
-      // Status deltas already retain content identity. Full updates reuse unchanged implementations.
-      const stableVariant = (variant: Variant) => {
-        const before =
-          previous.original?.id === variant.id
-            ? previous.original
-            : previous.variants.find((item) => item.id === variant.id)
-        return before &&
-          (before === variant ||
-            (before.html === variant.html &&
-              before.css === variant.css &&
-              before.js === variant.js &&
-              before.react?.code === variant.react?.code &&
-              before.react?.language === variant.react?.language &&
-              before.name === variant.name &&
-              before.hypothesis === variant.hypothesis &&
-              before.changes.join('\n') === variant.changes.join('\n') &&
-              JSON.stringify(before.lineage) === JSON.stringify(variant.lineage) &&
-              JSON.stringify(before.sample) === JSON.stringify(variant.sample) &&
-              JSON.stringify(before.constraints) === JSON.stringify(variant.constraints)))
-          ? before
-          : variant
-      }
-      const stableState =
-        next.variants === previous.variants && next.original === previous.original
-          ? next
-          : {
-              ...next,
-              original: next.original ? stableVariant(next.original) : null,
-              variants: next.variants.map(stableVariant),
-            }
-      editorRef.current = stableState
-      setEditor(stableState)
+      setRemixIds((current) => (current.every(exists) ? current : current.filter(exists)))
     })
     void sendToEditor({ command: 'getState' }).catch((error: unknown) => {
       setError(error instanceof Error ? error.message : 'Could not read the editor state.')
@@ -255,7 +242,7 @@ const useWorkspaceController = () => {
         setPending(null)
       }
     },
-    [notify, setError],
+    [notify, setError, setEngine],
   )
 
   const run = async (
@@ -271,6 +258,9 @@ const useWorkspaceController = () => {
       setError('Choose the required source directions before continuing.', action)
       return
     }
+    // Submitting accepts the current provider, even without touching the selector.
+    // Later readiness updates must not silently change the provider for this work.
+    engineChosen.current = true
     const command: EditorCommand =
       action === 'generate'
         ? {
@@ -320,31 +310,48 @@ const useWorkspaceController = () => {
   }
   const requestGenerate = () =>
     editor.variants.length ? setReplaceOpen(true) : void run('generate')
-  const choose = (variant: Variant) => {
-    if (!editorRef.current.variants.some((item) => item.id === variant.id)) {
-      setError('That direction is no longer available.')
-      return
-    }
-    setSelectedId(variant.id)
-    setActiveId(variant.id)
-    setView('ship')
-    setExpandedId(null)
-    setShowOriginal(false)
-  }
-  const setOperation = (next: { type: 'refine' | 'remix'; sources: Variant[] } | null) => {
-    setOperationState(
-      next ? { type: next.type, sourceIds: next.sources.map((source) => source.id) } : null,
-    )
-    if (next) setError('', next.type)
-  }
-  const toggleRemix = (id: string) =>
-    setRemixIds((current) =>
-      current.includes(id)
-        ? current.filter((value) => value !== id)
-        : current.length < 2
-          ? [...current, id]
-          : current,
-    )
+  const choose = useCallback(
+    (variant: Variant) => {
+      if (!editorRef.current.variants.some((item) => item.id === variant.id)) {
+        setError('That direction is no longer available.')
+        return
+      }
+      setSelectedId(variant.id)
+      setActiveId(variant.id)
+      setView('ship')
+      setExpandedId(null)
+      setShowOriginal(false)
+    },
+    [setError],
+  )
+  const setOperation = useCallback(
+    (next: { type: 'refine' | 'remix'; sources: Variant[] } | null) => {
+      setOperationState(
+        next ? { type: next.type, sourceIds: next.sources.map((source) => source.id) } : null,
+      )
+      if (next) setError('', next.type)
+    },
+    [setError],
+  )
+  const toggleRemix = useCallback(
+    (id: string) =>
+      setRemixIds((current) =>
+        current.includes(id)
+          ? current.filter((value) => value !== id)
+          : current.length < 2
+            ? [...current, id]
+            : current,
+      ),
+    [],
+  )
+  const setExpanded = useCallback(
+    (variant: Variant | null) => setExpandedId(variant?.id ?? null),
+    [],
+  )
+  const inspect = useCallback((variant: Variant) => {
+    setExportTab(variant.react ? 'react' : 'html')
+    setInspectionId(variant.id)
+  }, [])
   const openRemix = () => {
     const sources = remixIds
       .map((id) => editor.variants.find((variant) => variant.id === id))
@@ -397,12 +404,9 @@ const useWorkspaceController = () => {
     instruction,
     setInstruction,
     expanded,
-    setExpanded: (variant: Variant | null) => setExpandedId(variant?.id ?? null),
+    setExpanded,
     inspected,
-    inspect: (variant: Variant) => {
-      setExportTab(variant.react ? 'react' : 'html')
-      setInspectionId(variant.id)
-    },
+    inspect,
     exportOpen: Boolean(inspected),
     setExportOpen: (open: boolean) => setInspectionId(open ? (selected?.id ?? null) : null),
     exportTab,
@@ -423,9 +427,100 @@ const useWorkspaceController = () => {
 }
 type WorkspaceController = ReturnType<typeof useWorkspaceController>
 const WorkspaceContext = createContext<WorkspaceController | null>(null)
-export const WorkspaceProvider = ({ children }: { children: ReactNode }) => (
-  <WorkspaceContext.Provider value={useWorkspaceController()}>{children}</WorkspaceContext.Provider>
-)
+type CanvasController = Pick<
+  WorkspaceController,
+  | 'loading'
+  | 'remixIds'
+  | 'remixMode'
+  | 'setOperation'
+  | 'setInstruction'
+  | 'setExpanded'
+  | 'inspect'
+  | 'previewSettings'
+  | 'choose'
+  | 'toggleRemix'
+  | 'baselineKind'
+  | 'selected'
+  | 'active'
+  | 'view'
+  | 'variants'
+  | 'focusId'
+  | 'setFocusId'
+>
+const CanvasContext = createContext<CanvasController | null>(null)
+export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
+  const workspace = useWorkspaceController()
+  const {
+    loading,
+    remixIds,
+    remixMode,
+    setOperation,
+    setInstruction,
+    setExpanded,
+    inspect,
+    previewSettings,
+    choose,
+    toggleRemix,
+    baselineKind,
+    selected,
+    active,
+    view,
+    variants,
+    focusId,
+    setFocusId,
+  } = workspace
+  // Draft keystrokes and status timers do not invalidate every comparison card.
+  const canvas = useMemo(
+    () => ({
+      loading,
+      remixIds,
+      remixMode,
+      setOperation,
+      setInstruction,
+      setExpanded,
+      inspect,
+      previewSettings,
+      choose,
+      toggleRemix,
+      baselineKind,
+      selected,
+      active,
+      view,
+      variants,
+      focusId,
+      setFocusId,
+    }),
+    [
+      loading,
+      remixIds,
+      remixMode,
+      setOperation,
+      setInstruction,
+      setExpanded,
+      inspect,
+      previewSettings,
+      choose,
+      toggleRemix,
+      baselineKind,
+      selected,
+      active,
+      view,
+      variants,
+      focusId,
+      setFocusId,
+    ],
+  )
+  return (
+    <WorkspaceContext.Provider value={workspace}>
+      <CanvasContext.Provider value={canvas}>{children}</CanvasContext.Provider>
+    </WorkspaceContext.Provider>
+  )
+}
+export const useCanvas = () => {
+  const context = useContext(CanvasContext)
+  if (!context) throw new Error('Canvas components require WorkspaceProvider')
+  return context
+}
 export const useWorkspace = () => {
   const context = useContext(WorkspaceContext)
   if (!context) throw new Error('Workspace components require WorkspaceProvider')

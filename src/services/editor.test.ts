@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { initialEditorState, type EditorCommand, type EditorRequest } from '../domain/protocol'
+import {
+  initialEditorState,
+  type EditorCommand,
+  type EditorRequest,
+  type EditorState,
+} from '../domain/protocol'
 import { CURSOR_GENERATION_TIMEOUT_MS, EDITOR_REQUEST_TIMEOUT_MS } from '../domain/timeouts'
+import { demoVariants, original } from '../variants'
 
 // Exercise the real client boundary without granting tests an editor/file capability.
 test('editor bridge sends commands and accepts only host responses, not iframe messages', async (t) => {
@@ -24,7 +30,7 @@ test('editor bridge sends commands and accepts only host responses, not iframe m
   Object.defineProperty(globalThis, 'window', { value: fakeWindow, configurable: true })
   const bridge = await import('./editor')
   assert.equal(bridge.isEditor, true)
-  const received: unknown[] = []
+  const received: EditorState[] = []
   const unsubscribe = bridge.subscribeEditor((state) => received.push(state))
   t.after(() => {
     unsubscribe()
@@ -173,7 +179,69 @@ test('editor bridge sends commands and accepts only host responses, not iframe m
   await cancelAssertion
   emit({ type: 'response', id: cancelId, ok: true, message: 'late' })
 
+  const canvas: EditorState = {
+    ...initialEditorState,
+    source: {
+      id: 'snapshot',
+      relativePath: 'src/Button.tsx',
+      language: 'typescriptreact',
+      code: '<button>Save</button>',
+      startLine: 1,
+      endLine: 1,
+      selection: true,
+    },
+    original,
+    variants: demoVariants,
+    baselineKind: 'reconstructed',
+  }
+  emit({ type: 'state', state: canvas })
+  const first = received.at(-1)!
+  const refreshed = structuredClone(canvas)
+  refreshed.variants.push({ ...refreshed.variants[0], id: 'new-revision' })
+  emit({ type: 'state', state: refreshed })
+  const retained = received.at(-1)!
+  assert.equal(retained.source, first.source)
+  assert.equal(retained.original, first.original)
+  assert.equal(retained.variants[0], first.variants[0])
+  assert.equal(retained.variants.length, 4)
+
+  let implementationReads = 0
+  const code = retained.variants[0].html
+  Object.defineProperty(retained.variants[0], 'html', {
+    configurable: true,
+    get: () => {
+      implementationReads++
+      return code
+    },
+  })
+  for (let index = 0; index < 100; index++) {
+    emit({
+      type: 'status',
+      status: {
+        providers: [],
+        busy: true,
+        activity: { command: 'generate', phase: 'running', progress: { completed: 1, total: 3 } },
+        trusted: true,
+      },
+    })
+    const current = received.at(-1)!
+    assert.equal(current.source, retained.source)
+    assert.equal(current.original, retained.original)
+    assert.equal(current.variants, retained.variants)
+    assert.equal(current.constraints, retained.constraints)
+  }
+  assert.equal(implementationReads, 0, 'status updates must not traverse retained implementations')
+  Object.defineProperty(retained.variants[0], 'html', { value: code, writable: true })
+
+  const countBeforeInvalid = received.length
+  const malformed = structuredClone(refreshed)
+  malformed.variants[0].html = ''
+  emit({ type: 'state', state: malformed })
+  assert.equal(received.length, countBeforeInvalid, 'validate full state before reconciliation')
+  assert.equal(received.at(-1)?.variants, retained.variants)
+
   unsubscribe()
+  const countBeforeUnsubscribe = received.length
   emit({ type: 'state', state: initialEditorState })
-  assert.equal(received.length, 2)
+  assert.equal(received.length, countBeforeUnsubscribe)
 })

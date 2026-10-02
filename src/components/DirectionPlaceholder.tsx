@@ -18,12 +18,12 @@ export const DirectionPlaceholder = ({ index, loading }: { index: number; loadin
       <h2>
         {loading
           ? 'Waiting for the model'
-          : ['A different structure', 'A different hierarchy', 'A different interaction'][index]}
+          : ['Clearer hierarchy', 'A different structure', 'A better interaction'][index]}
       </h2>
       <p>
         {loading
-          ? 'The canvas updates only after a complete, validated response.'
-          : 'A hypothesis shaped by your component and intent. Not just another color.'}
+          ? 'Your comparison appears when all previews and styles are ready.'
+          : 'Generate to compare three approaches to your instruction.'}
       </p>
     </div>
   </article>

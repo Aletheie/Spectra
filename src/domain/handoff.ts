@@ -15,7 +15,7 @@ export const createHandoff = (
 ): string =>
   [
     '# Spectra — selected direction',
-    'Manually adapt this direction to the existing project. This brief does not apply any edits.',
+    'Paste this brief manually into your editor’s AI chat to adapt this direction to the existing project. Copying the brief does not open a chat, run an agent or apply any edits.',
     source
       ? `Captured source: ${source.relativePath}, lines ${source.startLine}–${source.endLine} (${source.language}). This is a snapshot and may include unsaved edits.`
       : 'Source: curated Orbit sample, not a captured project component.',

@@ -8,14 +8,14 @@ import { isRecord } from '../src/domain/guards'
 import { CURSOR_GENERATION_TIMEOUT_MS } from '../src/domain/timeouts'
 import {
   generationMessage,
+  generationSystemPrompt,
   MAX_RESPONSE_BYTES,
   parseProviderResult,
-  systemPrompt,
   validateInput,
   type GenerationInput,
 } from './providers'
 
-export type CursorConnection = { executable: string; configDir: string }
+export type CursorConnection = { executable: string; configDir: string; profilePrepared?: boolean }
 export type CursorRun = {
   args: string[]
   cwd: string
@@ -285,7 +285,7 @@ export const generateWithCursor = async (
   // Parameter overrides are supported by current CLI versions; they remain one argv value.
   if (!validModelId(model))
     throw new Error('Set a valid Cursor model ID in spectra.cursorModel (for example auto).')
-  await prepareCursorProfile(connection.configDir)
+  if (!connection.profilePrepared) await prepareCursorProfile(connection.configDir)
   return withCursorWorkspace(async (cwd) => {
     const output = await runner(connection, {
       args: [
@@ -303,7 +303,7 @@ export const generateWithCursor = async (
         '--trust',
       ],
       cwd,
-      input: `${systemPrompt}\n\nUse only the data below. Do not call tools, read files, run commands or fetch URLs. Respond with the requested JSON only.\n\n${generationMessage(input)}`,
+      input: `${generationSystemPrompt(input)}\n\nUse only the data below. Do not call tools, read files, run commands or fetch URLs. Respond with the requested JSON only.\n\n${generationMessage(input)}`,
       signal,
       timeoutMs: CURSOR_GENERATION_TIMEOUT_MS,
       timeoutMessage:

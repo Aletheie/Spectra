@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { original, demoVariants as previewVariants } from '../src/variants'
-import type { GenerationInput } from './providers'
+import { generationSystemPrompt, type GenerationInput } from './providers'
 import { CURSOR_GENERATION_TIMEOUT_MS } from '../src/domain/timeouts'
 import {
   checkCursorConnection,
@@ -83,6 +83,7 @@ test('Cursor uses stdin, a separate profile and denied tools; successful initial
       assert.ok(run.args.includes('ask'))
       assert.ok(run.args.includes('enabled'))
       assert.ok(!run.args.join(' ').includes(input.source!.code))
+      assert.ok(run.input?.startsWith(`${generationSystemPrompt(input)}\n\n`))
       const data = JSON.parse(run.input!.slice(run.input!.lastIndexOf('\n\n') + 2))
       assert.deepEqual(data.capturedSource, input.source)
       assert.equal(data.reconstructOriginal, true)
@@ -107,6 +108,7 @@ test('Cursor refine/remix send exact sources in order and cannot replace the ori
       const sources = demoVariants.slice(0, action === 'refine' ? 1 : 2)
       const context = { ...input, action, original, sources }
       const runner: CursorRunner = async (_connection, run) => {
+        assert.ok(run.input?.startsWith(`${generationSystemPrompt(context)}\n\n`))
         const data = JSON.parse(run.input!.slice(run.input!.lastIndexOf('\n\n') + 2))
         assert.deepEqual(data.sourceVariants, sources)
         assert.deepEqual(data.original, original)

@@ -20,10 +20,13 @@ test('browser harness is explicit sample-only and preserves state on unsupported
   await bridge.sendToEditor({ command: 'getState' })
   assert.equal(snapshots.at(-1)?.source, null)
   assert.equal(snapshots.at(-1)?.original, null)
-  await assert.rejects(bridge.sendToEditor({ command: 'captureSource' }), /extension in Cursor/)
+  await assert.rejects(
+    bridge.sendToEditor({ command: 'captureSource' }),
+    /extension in your editor/,
+  )
   await assert.rejects(
     bridge.sendToEditor({ command: 'generate', provider: 'demo', prompt: 'Generate' }),
-    /extension in Cursor/,
+    /extension in your editor/,
   )
   await bridge.sendToEditor({ command: 'loadSample' })
   assert.equal(snapshots.at(-1)?.baselineKind, 'sample')
@@ -32,7 +35,7 @@ test('browser harness is explicit sample-only and preserves state on unsupported
   assert.equal(generated.variants.length, 3)
   await assert.rejects(
     bridge.sendToEditor({ command: 'generate', provider: 'openai', prompt: 'Premium' }),
-    /extension in Cursor/,
+    /extension in your editor/,
   )
   assert.equal(snapshots.at(-1), generated)
   await bridge.sendToEditor({

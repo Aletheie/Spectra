@@ -3,13 +3,22 @@ import { useWorkspace } from '../state/WorkspaceProvider'
 import { SpectraMark } from './SpectraMark'
 
 export const Topbar = () => {
-  const { source, baselineKind, setSettingsOpen, loading, perform, isEditor } = useWorkspace()
+  const { source, baselineKind, setSettingsOpen, loading, perform, isEditor, variants, view } =
+    useWorkspace()
   return (
     <header className="topbar">
       <div className="product-name">
         <SpectraMark />
         <strong>Spectra</strong>
-        <span>Component exploration</span>
+        <span>
+          {view === 'ship'
+            ? '3 / Use your direction'
+            : variants.length
+              ? '2 / Compare directions'
+              : source || baselineKind === 'sample'
+                ? '1 / Describe the change'
+                : 'Start with your component'}
+        </span>
       </div>
       <div className="topbar-actions">
         {(source || baselineKind === 'sample') && (

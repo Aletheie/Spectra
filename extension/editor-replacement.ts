@@ -32,6 +32,9 @@ export const createEditorReplacement = (ensureOpen: () => void, trust: () => voi
       throw new Error(
         'This direction has no matching React replacement. Capture a TSX or JSX component and generate again.',
       )
+    // Load the parser only for reviewed replacement, before reading the document. Keep the final
+    // hash/syntax check synchronous so no module loading can yield between that check and the edit.
+    const { validateReactReplacement } = await import('./react-validation')
     const readCurrent = async () => {
       trust()
       ensureOpen()
@@ -57,7 +60,12 @@ export const createEditorReplacement = (ensureOpen: () => void, trust: () => voi
       return document
     }
     const document = await readCurrent()
-    const prepared = prepareReplacement(document.getText(), target.snapshot, implementation)
+    const prepared = prepareReplacement(
+      document.getText(),
+      target.snapshot,
+      implementation,
+      validateReactReplacement,
+    )
     if (prepared.document === document.getText())
       return 'This React direction already matches the editor. No changes made.'
     provider ??= vscode.workspace.registerTextDocumentContentProvider('spectra-change', {
@@ -92,7 +100,12 @@ export const createEditorReplacement = (ensureOpen: () => void, trust: () => voi
     })
     ensureOpen()
     trust()
-    const checked = prepareReplacement(current.getText(), target.snapshot, implementation)
+    const checked = prepareReplacement(
+      current.getText(),
+      target.snapshot,
+      implementation,
+      validateReactReplacement,
+    )
     const range = new vscode.Range(
       current.positionAt(target.snapshot.startOffset),
       current.positionAt(target.snapshot.endOffset),

@@ -39,6 +39,7 @@ const harness = () => {
   let afterReview: () => void = () => undefined
   let afterFocus: () => void = () => undefined
   let edits = 0
+  let parserLoads = 0
   let undos: unknown
   const previews = new Map<string, string>()
   const uri = { fsPath: '/workspace/src/Button.tsx', scheme: 'file' }
@@ -130,15 +131,17 @@ const harness = () => {
     module,
     exports: module.exports,
     Buffer,
-    require: (name: string) =>
-      name === 'vscode'
+    require: (name: string) => {
+      if (name === 'typescript') parserLoads++
+      return name === 'vscode'
         ? vscode
         : name === 'node:fs/promises'
           ? {
               realpath: async (path: string) =>
                 linked && path === uri.fsPath ? '/outside/Button.tsx' : path,
             }
-          : nativeRequire(name),
+          : nativeRequire(name)
+    },
   })
   const controller = module.exports.createEditorReplacement(
     () => {
@@ -156,6 +159,7 @@ const harness = () => {
     previews,
     getText: () => text,
     edits: () => edits,
+    parserLoads: () => parserLoads,
     undos: () => undos,
     cancel: () => {
       confirmed = false
@@ -187,7 +191,9 @@ const harness = () => {
 
 test('native replacement reviews exact documents and performs one undoable unsaved edit', async () => {
   const host = harness()
+  assert.equal(host.parserLoads(), 0)
   assert.match(await host.replace(), /Undo.*Auto Save/)
+  assert.equal(host.parserLoads(), 1)
   assert.equal(host.previews.get('before'), original)
   assert.equal(host.previews.get('after'), code)
   assert.equal(host.getText(), code)
@@ -198,6 +204,7 @@ test('native replacement reviews exact documents and performs one undoable unsav
   )
   assert.match(await host.replace(), /already matches/)
   assert.equal(host.edits(), 1)
+  assert.equal(host.parserLoads(), 1)
 })
 
 test('cancellation, changed files, loss of trust, changed links and disposal never overwrite source', async () => {

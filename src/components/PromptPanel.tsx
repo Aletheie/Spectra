@@ -58,25 +58,31 @@ export const PromptPanel = () => {
           </button>
         )}
       </div>
-      <div className="prompt-fields">
-        <div className="prompt-row">
-          <textarea
-            id="intent"
-            ref={promptRef}
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            rows={2}
-            placeholder="Describe a change to the layout, hierarchy or interaction…"
-            maxLength={MAX_PROMPT_LENGTH}
-            disabled={loading}
-            aria-describedby="engine-help"
-            onKeyDown={(event) => {
-              if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                event.preventDefault()
-                requestGenerate()
-              }
-            }}
-          />
+      <div className="prompt-row">
+        <textarea
+          id="intent"
+          ref={promptRef}
+          value={prompt}
+          onChange={(event) => setPrompt(event.target.value)}
+          rows={3}
+          placeholder="Describe a change to the layout, hierarchy or interaction…"
+          maxLength={MAX_PROMPT_LENGTH}
+          disabled={loading}
+          aria-describedby="engine-help"
+          onKeyDown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+              event.preventDefault()
+              requestGenerate()
+            }
+          }}
+        />
+      </div>
+      <div className="prompt-meta">
+        <ProviderControl />
+        <div className="generate-action">
+          <span className="keyboard-hint">
+            <kbd>⌘ / Ctrl</kbd> + <kbd>Enter</kbd>
+          </span>
           <button
             className="primary"
             disabled={!canGenerate || !prompt.trim()}
@@ -86,15 +92,19 @@ export const PromptPanel = () => {
             {variants.length ? 'New comparison…' : 'Generate 3 directions'}
           </button>
         </div>
-        <DesignConstraints />
       </div>
-      <ComponentFocus />
-      <div className="prompt-meta">
-        <ProviderControl />
-        <span className="keyboard-hint">
-          <kbd>⌘ / Ctrl</kbd> + <kbd>Enter</kbd>
-        </span>
-      </div>
+      {engine !== 'demo' && (
+        <details className="prompt-options">
+          <summary>
+            Options
+            {constraintsSummary(constraints)
+              ? ` · Keep: ${constraintsSummary(constraints)}`
+              : ' · What to keep & suggested focus'}
+          </summary>
+          <DesignConstraints />
+          <ComponentFocus />
+        </details>
+      )}
       {variants.length > 0 && (
         <p className="help-text">
           New comparison replaces the existing directions and revisions after confirmation.

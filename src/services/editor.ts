@@ -14,6 +14,7 @@ import { original } from '../variants'
 import { withLineage } from '../domain/lineage'
 import { OperationCancelled } from '../domain/errors'
 import { editorRequestTimeout } from '../domain/timeouts'
+import { reconcileEditorState } from '../domain/reconcile'
 
 type EditorApi = { postMessage: (message: EditorRequest) => void }
 type EditorWindow = Window & {
@@ -51,7 +52,7 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
   // message must not discard the last canvas or swallow a later valid response.
   if (!validHostMessage(data)) return
   if (data.type === 'state' || data.type === 'status') {
-    if (data.type === 'state') latestState = data.state
+    if (data.type === 'state') latestState = reconcileEditorState(latestState, data.state)
     else if (latestState) latestState = { ...latestState, ...data.status }
     else return
     for (const listener of listeners) listener(latestState)
@@ -92,7 +93,7 @@ const sampleRequest = async (command: EditorCommand): Promise<string | undefined
   ) {
     if (command.provider !== 'demo' || sampleState.baselineKind !== 'sample') {
       throw new Error(
-        'Open the Spectra extension in Cursor to explore your component with live AI.',
+        'Open the installed Spectra extension in your editor to explore your component with live AI.',
       )
     }
     if (command.constraints && hasConstraints(command.constraints)) {
@@ -147,7 +148,7 @@ const sampleRequest = async (command: EditorCommand): Promise<string | undefined
     return 'Sample HTML downloaded. Review before production use.'
   }
   throw new Error(
-    'This action needs the Spectra extension in Cursor. The browser only runs curated samples.',
+    'This action needs the installed Spectra extension in your editor. The browser only runs curated samples.',
   )
 }
 

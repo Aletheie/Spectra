@@ -33,7 +33,8 @@ export const SourcePanel = () => {
         </div>
         {isEditor && !trusted && (
           <p className="help-text">
-            Trust this workspace in Cursor to import source and use AI. Samples work without trust.
+            Trust this workspace in your editor to import source and use AI. Samples work without
+            trust.
           </p>
         )}
         <div className="entry-hint">
@@ -53,7 +54,7 @@ export const SourcePanel = () => {
           </li>
           <li>
             <strong>Choose and use</strong>
-            <span>Replace a React component, copy for Cursor or save HTML.</span>
+            <span>Replace a React component, copy a brief or save HTML.</span>
           </li>
         </ol>
         <p className="privacy-note">
@@ -86,21 +87,20 @@ export const SourcePanel = () => {
       </div>
       <p>
         {source
-          ? 'Captured source snapshot · Imported styles and dependencies are not included. AI previews are reconstructions, not your running app.'
-          : 'Sample component · Demo mode uses three curated directions and preset transformations. It does not follow arbitrary instructions.'}
+          ? 'AI previews reconstruct this snapshot. Imported styles and app context are not included.'
+          : 'Curated sample · Prepared designs and preset edits, not live AI.'}
       </p>
-      {reactLanguageFor(source) && (
-        <p className="help-text">
-          React + Tailwind output · Generate includes project code and an approximate HTML preview.
-          Replacement targets only this captured {source?.selection ? 'selection' : 'file'} and
-          opens an editor diff first.
-        </p>
-      )}
       {source && (
         <details className="source-details">
           <summary>
             Review captured source · {source.code.length.toLocaleString()} characters
           </summary>
+          <p className="help-text">
+            Only this snapshot is sent after confirmation. Previews are AI reconstructions, not your
+            running component.
+            {reactLanguageFor(source) &&
+              ' React + Tailwind code is included. Replacement opens a diff for your review.'}
+          </p>
           <pre>
             <code>{source.code}</code>
           </pre>

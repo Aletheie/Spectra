@@ -24,6 +24,37 @@ const source: SourceContext = {
   endLine: 1,
   selection: true,
 }
+
+test('progress accepts bounded completed-preview counts only on running generation', () => {
+  const status = {
+    providers: [],
+    trusted: true,
+    busy: true,
+    activity: { command: 'generate', phase: 'running', progress: { completed: 1, total: 4 } },
+  }
+  assert.equal(validHostMessage({ type: 'status', status }), true)
+  for (const progress of [
+    { completed: -1, total: 4 },
+    { completed: 5, total: 4 },
+    { completed: 0, total: 0 },
+    { completed: 1, total: 5 },
+    { completed: 0.5, total: 4 },
+    { completed: 1, total: '4' },
+    { completed: 1, total: 4, html: '<script />' },
+  ])
+    assert.equal(
+      validHostMessage({
+        type: 'status',
+        status: { ...status, activity: { ...status.activity, progress } },
+      }),
+      false,
+    )
+  for (const activity of [
+    { ...status.activity, phase: 'confirming' },
+    { ...status.activity, command: 'copyHandoff' },
+  ])
+    assert.equal(validHostMessage({ type: 'status', status: { ...status, activity } }), false)
+})
 const sample: EditorState = {
   ...initialEditorState,
   baselineKind: 'sample',

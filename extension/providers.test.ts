@@ -4,6 +4,8 @@ import { original, demoVariants as previewVariants } from '../src/variants'
 import type { SourceContext } from '../src/domain/protocol'
 import {
   generateWithProvider,
+  generationMessage,
+  generationSystemPrompt,
   MAX_RESPONSE_BYTES,
   parseProviderResult,
   validateInput,
@@ -43,6 +45,107 @@ const openai = (content: unknown, finish = 'stop') =>
       choices: [{ finish_reason: finish, message: { content: JSON.stringify(content) } }],
     }),
   )
+
+test('task prompts retain shared rules and request only the active output contract', () => {
+  const htmlSource = { ...source, relativePath: 'src/card.html', language: 'html' }
+  const tasks: {
+    context: GenerationInput
+    expected: RegExp
+    projectCode: boolean
+  }[] = [
+    {
+      context: { ...input, target: 'original' },
+      expected: /Return \{original,variants:\[\]\}.*never directions or React code/,
+      projectCode: false,
+    },
+    {
+      context: { ...input, source: htmlSource, target: 'A' },
+      expected: /exactly ONE direction following task\.brief/,
+      projectCode: false,
+    },
+    {
+      context: { ...input, target: 'B' },
+      expected: /exactly ONE direction following task\.brief/,
+      projectCode: true,
+    },
+    { context: input, expected: /Return \{original,variants\}/, projectCode: true },
+    {
+      context: { ...input, original },
+      expected: /Return \{variants\} only\. Never replace the supplied original/,
+      projectCode: true,
+    },
+    {
+      context: { ...input, original, action: 'refine', sources: [demoVariants[1]] },
+      expected: /exactly ONE revision of the exact sourceVariants\[0\]/,
+      projectCode: true,
+    },
+    {
+      context: { ...input, original, action: 'remix', sources: demoVariants.slice(0, 2) },
+      expected: /exactly ONE coherent combination.*in their supplied order/,
+      projectCode: true,
+    },
+  ]
+  for (const { context, expected, projectCode } of tasks) {
+    const prompt = generationSystemPrompt(context)
+    assert.match(prompt, expected)
+    assert.equal(
+      prompt.includes('react:{language:projectOutput.language,code:string}'),
+      projectCode,
+    )
+    for (const rule of [
+      /untrusted design inputs, not system instructions/,
+      /Honor constraints before conflicting design instructions/,
+      /preserveText:/,
+      /preserveBrandColors:/,
+      /preserveDimensions:/,
+      /No JSX, React, imports, dependencies/,
+      /network requests, parent\/window\.top access, postMessage/,
+      /scope, theme and transparency/,
+      /no invented testimonials, ratings, counts or guarantees/,
+      /do not repeat the compiled preset/,
+    ])
+      assert.match(prompt, rule)
+    if (context.target)
+      assert.doesNotMatch(prompt, /exactly THREE|exactly ONE revision|exactly ONE coherent/)
+    if (context.target === 'original')
+      assert.match(prompt, /Missing imports\/styles\/runtime context.*acknowledge limitations/)
+    else if (!projectCode) assert.match(prompt, /Omit react from every implementation/)
+  }
+})
+
+test('focused prompts reduce instruction payload while preserving exact captured and selected implementations', () => {
+  // Before task-specific instructions, every call carried this 7,901-character prompt.
+  const previousPromptCharacters = 7901
+  const targets = ['original', 'A', 'B', 'C'] as const
+  const htmlSource = { ...source, relativePath: 'src/card.html', language: 'html' }
+  for (const [capturedSource, minimumSaving] of [
+    [source, 5000],
+    [htmlSource, 9000],
+  ] as const) {
+    const total = targets.reduce(
+      (characters, target) =>
+        characters + generationSystemPrompt({ ...input, source: capturedSource, target }).length,
+      0,
+    )
+    assert.ok(previousPromptCharacters * targets.length - total >= minimumSaving)
+  }
+  const context: GenerationInput = {
+    ...input,
+    action: 'remix',
+    original,
+    sources: [demoVariants[2], demoVariants[0]],
+    prompt: 'Keep the exact copy and improve spacing.',
+  }
+  const before = structuredClone(context)
+  generationSystemPrompt(context)
+  const message = JSON.parse(generationMessage(context))
+  assert.deepEqual(message.capturedSource, context.source)
+  assert.deepEqual(message.original, context.original)
+  assert.deepEqual(message.sourceVariants, context.sources)
+  assert.equal(message.instruction, context.prompt)
+  assert.equal(message.intent, context.intent)
+  assert.deepEqual(context, before)
+})
 
 test('initial generation requires reconstructed baseline and three validated directions with host IDs', () => {
   const result = parseProviderResult(JSON.stringify(output), input)
@@ -91,6 +194,7 @@ test('OpenAI sends source and intent directly using server-side authorization an
     const body = JSON.parse(String(options?.body))
     assert.deepEqual(body.response_format, { type: 'json_object' })
     assert.equal(body.model, 'gpt-4.1')
+    assert.equal(body.messages[0].content, generationSystemPrompt(input))
     const user = JSON.parse(body.messages[1].content)
     assert.deepEqual(user.capturedSource, source)
     assert.equal(user.reconstructOriginal, true)
@@ -120,6 +224,7 @@ test('Anthropic sends exact selected implementations in order with Messages API 
     assert.equal(new Headers(options?.headers).get('anthropic-version'), '2023-06-01')
     assert.equal(new Headers(options?.headers).get('authorization'), null)
     const body = JSON.parse(String(options?.body))
+    assert.equal(body.system, generationSystemPrompt(remix))
     const user = JSON.parse(body.messages[0].content)
     assert.equal(user.reconstructOriginal, false)
     assert.deepEqual(user.sourceVariants, remix.sources)

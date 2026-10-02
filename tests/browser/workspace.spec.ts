@@ -13,6 +13,26 @@ const sample = async (page: Page) => {
   await expect(page.locator('.variant-card')).toHaveCount(4)
 }
 
+test('narrow sample entry keeps Original visible and interactive before generation', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 900 })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Try curated sample' }).click()
+  const originalCard = page.locator('.original-card')
+  await expect(originalCard).toBeVisible()
+  await originalCard.scrollIntoViewIfNeeded()
+  const preview = originalCard.frameLocator('iframe')
+  await preview.getByRole('button', { name: 'Monthly', exact: true }).click()
+  await expect(preview.locator('[data-price]')).toHaveText('$30')
+  await page.getByRole('button', { name: 'Generate 3 directions' }).click()
+  await expect(page.locator('.variant-card')).toHaveCount(4)
+  await expect(page.locator('.variant-card[data-active="true"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Show original', exact: true }).click()
+  await expect(originalCard).toBeVisible()
+  await expect(preview.locator('[data-price]')).toHaveText('$30')
+})
+
 type MockHost = {
   state: EditorState
   requests: EditorRequest[]
@@ -223,7 +243,7 @@ test('copy, export errors, cancellation and provider configuration stay scoped',
     .nth(1)
     .getByRole('button', { name: 'Choose', exact: true })
     .click()
-  await page.getByRole('button', { name: 'Copy for Cursor', exact: true }).click()
+  await page.getByRole('button', { name: 'Copy brief', exact: true }).click()
   await expect(page.locator('.activity-row')).toContainText('Copying')
   await expect(page.locator('.activity-row')).not.toContainText('Generating')
   await page.evaluate(() =>
@@ -305,7 +325,7 @@ test('long hypotheses keep previews aligned and narrow layouts expose the primar
     .nth(1)
     .getByRole('button', { name: 'Choose', exact: true })
     .click()
-  await expect(page.getByRole('button', { name: 'Copy for Cursor', exact: true })).toBeInViewport()
+  await expect(page.getByRole('button', { name: 'Copy brief', exact: true })).toBeInViewport()
   await expect(page.getByRole('button', { name: 'Save HTML', exact: true })).toBeInViewport()
   await page.setViewportSize({ width: 600, height: 900 })
   await page.screenshot({ path: testInfo.outputPath('selected-narrow.png') })
@@ -394,7 +414,9 @@ test('large session profile: typing and status deltas retain loaded previews', a
     js: demoVariants[index % 3].js + '\n/*' + 'x'.repeat(30000) + '*/',
   }))
   await mockHost(page, { variants: large })
-  await expect(page.locator('.variant-card iframe')).toHaveCount(16)
+  await expect(page.locator('.variant-card')).toHaveCount(16)
+  await expect.poll(() => page.locator('.variant-card iframe').count()).toBeGreaterThan(0)
+  expect(await page.locator('.variant-card iframe').count()).toBeLessThanOrEqual(6)
   const handles = await page.locator('.variant-card iframe').elementHandles()
   const started = Date.now()
   await page
@@ -412,10 +434,113 @@ test('large session profile: typing and status deltas retain loaded previews', a
   })
   for (const handle of handles)
     expect(await handle.evaluate((frame) => frame.isConnected)).toBe(true)
+  await page.locator('.direction-navigation button').last().click()
+  await expect(page.locator('.variant-card').last().locator('iframe')).toHaveCount(1)
+  for (const handle of handles)
+    expect(await handle.evaluate((frame) => frame.isConnected)).toBe(true)
   expect(payloadSizes.delta).toBeLessThan(1000)
   console.log(
     `Large-session diagnostic: ${elapsed}ms for 48 typed characters; full state ${payloadSizes.full} chars vs status ${payloadSizes.delta} chars. Not a cross-machine benchmark.`,
   )
+})
+
+test('generation progress updates counts without reloading the last comparison', async ({
+  page,
+}) => {
+  await mockHost(page)
+  const card = page.locator('.variant-card').nth(1)
+  await card.frameLocator('iframe').getByRole('button', { name: 'Monthly', exact: true }).click()
+  await page.getByRole('button', { name: 'New comparison…' }).click()
+  await page.getByRole('button', { name: 'Replace directions' }).click()
+  for (const completed of [0, 1, 2]) {
+    await page.evaluate((count) => {
+      const host = (window as TestWindow).__spectraTest
+      window.postMessage(
+        {
+          type: 'status',
+          status: {
+            providers: host.state.providers,
+            trusted: true,
+            busy: true,
+            activity: {
+              command: 'generate',
+              phase: 'running',
+              progress: { completed: count, total: 3 },
+            },
+          },
+        },
+        '*',
+      )
+    }, completed)
+    await expect(page.locator('.activity-row')).toContainText(`${completed} of 3 previews ready`)
+    await expect(card.frameLocator('iframe').locator('[data-price]')).toHaveText('$30')
+  }
+  await page.getByRole('button', { name: 'Cancel generation' }).click()
+  await expect(page.locator('.activity-row')).toHaveCount(0)
+  await expect(card.frameLocator('iframe').locator('[data-price]')).toHaveText('$30')
+})
+
+test('full refresh and status bursts preserve drafts and frames while changed code reaches the preview', async ({
+  page,
+}) => {
+  await mockHost(page)
+  const card = page.locator('.variant-card').nth(1)
+  await card.frameLocator('iframe').getByRole('button', { name: 'Monthly', exact: true }).click()
+  await page.locator('#intent').fill('Keep this unsent instruction')
+  await page.evaluate(() => {
+    const host = (window as TestWindow).__spectraTest
+    host.state = structuredClone(host.state)
+    const source = host.state.variants[0]
+    host.state.variants.push({
+      ...source,
+      id: 'appended-revision',
+      lineage: {
+        action: 'refine',
+        sourceIds: [source.id],
+        rootId: source.id,
+        label: 'A',
+        revision: 2,
+      },
+    })
+    host.emit()
+    for (let index = 0; index < 30; index++) {
+      window.postMessage(
+        {
+          type: 'status',
+          status: { providers: host.state.providers, busy: false, activity: null, trusted: true },
+        },
+        '*',
+      )
+    }
+  })
+  await expect(page.locator('.variant-card')).toHaveCount(5)
+  await expect(page.locator('#intent')).toHaveValue('Keep this unsent instruction')
+  await expect(card.frameLocator('iframe').locator('[data-price]')).toHaveText('$30')
+  await page.evaluate(() => {
+    const host = (window as TestWindow).__spectraTest
+    host.state.variants[0] = {
+      ...host.state.variants[0],
+      html: '<button>Updated implementation</button>',
+      css: 'button { color: navy; }',
+      js: '',
+    }
+    host.emit()
+  })
+  await expect(
+    card.frameLocator('iframe').getByRole('button', { name: 'Updated implementation' }),
+  ).toBeVisible()
+  await expect(page.locator('#intent')).toHaveValue('Keep this unsent instruction')
+})
+
+test('advanced options stay collapsed until requested and preserve the draft', async ({ page }) => {
+  await mockHost(page)
+  await expect(page.getByRole('checkbox', { name: 'Text', exact: true })).not.toBeVisible()
+  await page.locator('#intent').fill('Keep the content and simplify the layout')
+  await page.locator('.prompt-options summary').click()
+  await page.getByRole('checkbox', { name: 'Text', exact: true }).check()
+  await page.locator('.prompt-options summary').click()
+  await expect(page.locator('.prompt-options summary')).toContainText('Keep: Text')
+  await expect(page.locator('#intent')).toHaveValue('Keep the content and simplify the layout')
 })
 
 test('React inspection, copy and replacement use the selected revision ID and keep the canvas on conflicts', async ({

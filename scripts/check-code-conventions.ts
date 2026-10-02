@@ -20,7 +20,7 @@ const collectFiles = async (directory: string): Promise<string[]> => {
   return files.flat()
 }
 
-const directories = ['src', 'extension', 'scripts']
+const directories = ['src', 'extension', 'scripts', 'tests/native']
 const files = (await Promise.all(directories.map(collectFiles))).flat()
 files.push('vite.config.ts')
 

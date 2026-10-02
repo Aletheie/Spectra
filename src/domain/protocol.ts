@@ -65,7 +65,12 @@ export type EditorCommand =
   | { command: 'copyReact'; variantId: string }
 
 export type EditorRequest = EditorCommand & { type: 'request'; id: string }
-export type Activity = { command: EditorCommand['command']; phase: 'confirming' | 'running' }
+export type GenerationProgress = { completed: number; total: number }
+export type Activity = {
+  command: EditorCommand['command']
+  phase: 'confirming' | 'running'
+  progress?: GenerationProgress
+}
 export type EditorStatus = Pick<EditorState, 'providers' | 'busy' | 'activity' | 'trusted'>
 export type HostMessage =
   | { type: 'state'; state: EditorState }

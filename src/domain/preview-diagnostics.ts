@@ -12,15 +12,25 @@ export const previewDiagnostics = (id: string, nonce?: string) =>
     if (failed || !document.body || document.documentElement.clientWidth === 0) return;
     const bodyStyle = getComputedStyle(document.body);
     const visibleText = bodyStyle.display !== 'none' && bodyStyle.visibility !== 'hidden' && Number(bodyStyle.opacity) > 0 && document.body.innerText.trim();
-    const visible = visibleText || [...document.body.querySelectorAll('*')].slice(0, 2000).some((element) => {
+    let visible = Boolean(visibleText);
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+    for (let count = 0; !visible && count < 2000; count++) {
+      const element = walker.nextNode();
+      if (!element) break;
+      if (['SCRIPT', 'STYLE'].includes(element.tagName)) continue;
       const style = getComputedStyle(element);
       const rect = element.getBoundingClientRect();
-      return !['SCRIPT', 'STYLE'].includes(element.tagName) && style.visibility !== 'hidden' && style.display !== 'none' && Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0 && ((element.innerText || '').trim() || ['SVG', 'CANVAS', 'IMG', 'INPUT', 'BUTTON'].includes(element.tagName));
-    });
+      visible = style.visibility !== 'hidden' && style.display !== 'none' && Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0 && Boolean((element.innerText || '').trim() || ['SVG', 'CANVAS', 'IMG', 'INPUT', 'BUTTON'].includes(element.tagName));
+    }
     report(visible ? 'ready' : 'empty');
   };
   addEventListener('load', () => setTimeout(inspect, 300));
-  addEventListener('resize', inspect);
+  let scheduled = false;
+  addEventListener('resize', () => {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => { scheduled = false; inspect(); });
+  });
 })();
 </script>`
     : ''

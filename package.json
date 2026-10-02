@@ -1,9 +1,9 @@
 {
   "name": "spectra",
   "displayName": "Spectra",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "private": true,
-  "description": "Explore three UI directions for your component, side by side in Cursor.",
+  "description": "Compare three UI directions inside VS Code and compatible editors, with your choice of AI provider.",
   "categories": [
     "Other"
   ],
@@ -17,16 +17,17 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build && npm run build:extension",
-    "build:extension": "esbuild extension/extension.ts --bundle --platform=node --format=cjs --external:vscode --target=node20 --outfile=dist/extension.cjs",
+    "build:extension": "node --import tsx scripts/build-extension.ts",
     "watch": "concurrently -k \"vite build --watch\" \"npm run build:extension -- --watch\"",
     "package": "npm run build && vsce package --no-dependencies --allow-missing-repository --no-rewrite-relative-links --skip-license",
-    "lint": "oxlint --deny-warnings src extension scripts vite.config.ts && node --import tsx scripts/check-code-conventions.ts",
-    "lint:fix": "oxlint --deny-warnings --fix src extension scripts vite.config.ts && node --import tsx scripts/check-code-conventions.ts",
+    "lint": "oxlint --deny-warnings src extension scripts tests/native vite.config.ts && node --import tsx scripts/check-code-conventions.ts",
+    "lint:fix": "oxlint --deny-warnings --fix src extension scripts tests/native vite.config.ts && node --import tsx scripts/check-code-conventions.ts",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test": "node --import tsx --test src/**/*.test.ts extension/*.test.ts",
     "check": "npm run lint && npm run format:check && npm test && npm run build",
     "test:browser": "playwright test",
+    "test:native": "node --import tsx scripts/test-native.ts",
     "dev:perseid": "vite --config examples/perseid/vite.config.ts",
     "build:perseid": "tsc --noEmit -p examples/perseid/tsconfig.json && vite build --config examples/perseid/vite.config.ts",
     "preview:perseid": "vite preview --config examples/perseid/vite.config.ts --host 127.0.0.1 --port 4174",
